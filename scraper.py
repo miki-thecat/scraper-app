@@ -10,5 +10,7 @@ from selenium.webdriver.chrome.service import Service
 CHROMIUM_BINARY = "/usr/bin/chromium"
 CHROMEDRIVER_BINARY = "/usr/bin/chromedriver"
 
-def 
+def _build_driver() -> webdriver.Chrome:
+    Options = Options()
+    
 
