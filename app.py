@@ -7,6 +7,7 @@ from config import Config
 from functools import wraps
 from base64 import b64decode
 
+
 def create_app():
     app = Flask(__name__, static_folder='static', template_folder="templates")
     app.config.from_object(Config)
@@ -27,7 +28,7 @@ def create_app():
         try:
             encoded = auth_header.split(" ")[1]
             userpass = b64decode(encoded).decode("utf-8")
-            username, password  = userpass.split(":", 1)
+            username, password = userpass.split(":", 1)
             return safe_str_cmp(username, USER) and safe_str_cmp(password, PASS)
         except Exception:
             return False
@@ -41,7 +42,7 @@ def create_app():
             return f(*args, **kwargs)
         return wrapper
 
-    #----------- ルーティング設定 -----------
+    # ----------- ルーティング設定 -----------
 
     @app.route("./")
     @requires_basic_auth
@@ -52,8 +53,10 @@ def create_app():
     @app.route("/scrape")
     @requires_basic_auth
     def scrape():
-        
-
-
-
-
+        url = request.form.get("url", "").strip()
+        if not url:
+            flash("URLを入力してください", "error")
+            return redirect(url_for("index"))
+        try:
+            data = scrape_nhk_article(url)
+            # 既存のURLは更新, なければ作成
