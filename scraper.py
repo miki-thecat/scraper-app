@@ -10,7 +10,17 @@ from selenium.webdriver.chrome.service import Service
 CHROMIUM_BINARY = "/usr/bin/chromium"
 CHROMEDRIVER_BINARY = "/usr/bin/chromedriver"
 
+# ChromeDriver を自動操作するためのドライバを生成する
 def _build_driver() -> webdriver.Chrome:
-    Options = Options()
-    
+    options = Options()
+    options.binary_location = CHROMIUM_BINARY
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--lang=ja-JP")
+    service= Service(CHROMEDRIVER_BINARY)
+    return webdriver.Chrome(service=service, options=options)
+
+
 
