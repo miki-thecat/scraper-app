@@ -58,4 +58,13 @@ def scrape_nhk_article(url: str) -> dict:
     if not title:
         title = soup.title.get_text(strip=True) if soup.title else "(タイトル不明)"
 
-    #
+    # 日時指定
+    published = None
+    for sel in ["time[datetime]", "p.content--date-time", "time"]:
+        node = soup.select_one(sel)
+        if node and node.get_text(strip=True):
+            published = node.get_text(strip=True)
+            break
+
+    # 本文を推定
+    body_parts = []
