@@ -57,6 +57,34 @@ def create_app():
         if not url:
             flash("URLを入力してください", "error")
             return redirect(url_for("index"))
+
         try:
             data = scrape_nhk_article(url)
             # 既存のURLは更新, なければ作成
+            art = Article.query.filter_by(url=data["final_url"]).first()
+            if not art:  # 新規作成
+                # DBモデル作成
+                art = Article(
+                    url=data["final_url"],
+                    title=data["title"],
+                    published_at=data["published_at"],
+                    body=data["data"],
+                )
+                db.session.add(art)  # DB追加
+            else:  # 更新
+                art.title = data["title"]
+                art.published_at = data["published_at"]
+                art.body = data["data"]
+            db.session.commit()  # DB保存
+            return redirect(url_for("index"))
+        except Exception as e:
+            flash(f"記事の取得に失敗しました: {e}", "error")
+            return redirect(url_for("index"))  # エラーハンドリング
+
+    return app  # Flaskアプリケーションを返す
+
+app = create_app()
+
+if __name__ == "__main__":
+    # Dev Container でポート転送される想定
+    app.run(host="0.0.0.0", port=8000, debug=False)
