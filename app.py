@@ -1,6 +1,6 @@
 import os
 from flask import Flask, render_template, request, redirect, url_for, flash
-from werkzeug.security import safe_str_cmp
+import hmac
 from models import db, Article, init_db
 from scraper import scrape_nhk_article
 from config import Config
@@ -29,7 +29,7 @@ def create_app():
             encoded = auth_header.split(" ")[1]
             userpass = b64decode(encoded).decode("utf-8")
             username, password = userpass.split(":", 1)
-            return safe_str_cmp(username, USER) and safe_str_cmp(password, PASS)
+            return hmac.compare_digest(username, USER) and hmac.compare_digest(password, PASS)
         except Exception:
             return False
 
@@ -82,6 +82,7 @@ def create_app():
             return redirect(url_for("index"))  # エラーハンドリング
 
     return app  # Flaskアプリケーションを返す
+
 
 app = create_app()
 
