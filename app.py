@@ -1,6 +1,6 @@
 import os
 from flask import Flask, render_template, request, redirect, url_for, flash
-from werkzeug.security import safe_str_cmp
+import hmac
 from models import db, Article, init_db
 from scraper import scrape_nhk_article
 from config import Config
@@ -23,13 +23,13 @@ def create_app():
     PASS = os.getenv("BASIC_AUTH_PASSWORD", "password")
 
     def check_auth(auth_header: str) -> bool:
-        if not auth_header or not auth_header.staartswith("Basic "):
+        if not auth_header or not auth_header.startswith("Basic "):
             return False
         try:
             encoded = auth_header.split(" ")[1]
             userpass = b64decode(encoded).decode("utf-8")
             username, password = userpass.split(":", 1)
-            return safe_str_cmp(username, USER) and safe_str_cmp(password, PASS)
+            return hmac.compare_digest(username, USER) and hmac.compare_digest(password, PASS)
         except Exception:
             return False
 
@@ -44,19 +44,48 @@ def create_app():
 
     # ----------- ルーティング設定 -----------
 
-    @app.route("./")
+    @app.get("/")
     @requires_basic_auth
     def index():
         articles = Article.query.order_by(Article.id.desc()).all()
         return render_template("index.html", articles=articles)
 
-    @app.route("/scrape")
+    @app.post("/scrape")
     @requires_basic_auth
     def scrape():
         url = request.form.get("url", "").strip()
         if not url:
             flash("URLを入力してください", "error")
             return redirect(url_for("index"))
+
         try:
             data = scrape_nhk_article(url)
             # 既存のURLは更新, なければ作成
+            art = Article.query.filter_by(url=data["final_url"]).first()
+            if not art:  # 新規作成
+                # DBモデル作成
+                art = Article(
+                    url=data["final_url"],
+                    title=data["title"],
+                    published_at=data["published_at"],
+                    body=data["data"],
+                )
+                db.session.add(art)  # DB追加
+            else:  # 更新
+                art.title = data["title"]
+                art.published_at = data["published_at"]
+                art.body = data["data"]
+            db.session.commit()  # DB保存
+            return redirect(url_for("index"))
+        except Exception as e:
+            flash(f"記事の取得に失敗しました: {e}", "error")
+            return redirect(url_for("index"))  # エラーハンドリング
+
+    return app  # Flaskアプリケーションを返す
+
+
+app = create_app()
+
+if __name__ == "__main__":
+    # Dev Container でポート転送される想定
+    app.run(host="0.0.0.0", port=8000, debug=False)
