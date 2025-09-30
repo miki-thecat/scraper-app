@@ -1,27 +1,26 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, UniqueConstraint
-from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime, timezone
-from flask import Config
-from sqlalchemy import DateTime
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import UniqueConstraint
+from sqlalchemy.types import DateTime, String, Integer, Text
 
-engine = create_engine(Config.SQLALCHEMY_DATABASE_URI, pool_pre_ping=True)
-Base = declarative_base()
-SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+db = SQLAlchemy()
 
-class Article(Base):
-    __tablename__ = 'articles'
-    id = Column(Integer, primary_key=True)
-    url = Column(String(512), nullable=False)
-    title = Column(String(512), nullable=False)
-    published_at = Column(String(128), nullable=True)
-    body = Column(Text, nullable=False)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    
+
+class Article(db.Model):
+    __tablename__ = "articles"
+
+    id = db.Column(Integer, primary_key=True, autoincrement=True)
+    url = db.Column(String(512), nullable=False)
+    title = db.Column(String(512), nullable=False)
+    published_at = db.Column(String(128), nullable=True)  # NHKの表示文字列をそのまま格納
+    body = db.Column(Text, nullable=False)
+    ccreated_at = db.Column(DateTime(timezone=True),
+                            default=lambda: datetime.now(timezone.utc))
+
     __table_args__ = (
-        UniqueConstraint('url', name='uq_articles_url'),
+        UniqueConstraint("url", name="uq_articles_url"),
     )
-    
+
+
 def init_db():
-    Base.metadata.create_all(bind=engine)
-    
-    
+    db.create_all()

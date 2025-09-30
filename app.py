@@ -23,7 +23,7 @@ def create_app():
     PASS = os.getenv("BASIC_AUTH_PASSWORD", "password")
 
     def check_auth(auth_header: str) -> bool:
-        if not auth_header or not auth_header.staartswith("Basic "):
+        if not auth_header or not auth_header.startswith("Basic "):
             return False
         try:
             encoded = auth_header.split(" ")[1]
@@ -44,7 +44,7 @@ def create_app():
 
     # ----------- ルーティング設定 -----------
 
-    @app.route("./")
+    @app.route("/")
     @requires_basic_auth
     def index():
         articles = Article.query.order_by(Article.id.desc()).all()
