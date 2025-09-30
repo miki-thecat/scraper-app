@@ -25,8 +25,6 @@ def _build_driver() -> webdriver.Chrome:
     return webdriver.Chrome(service=service, options=options)
 
 # NHK の記事をスクレイピングする
-
-
 def scrape_nhk_article(url: str) -> dict:
     parsed = urlparse(url)  # URLをパースに分解
     if "nhk.or.jp" not in parsed.netloc:  # https://www3.nhk.or.jp/news/
