@@ -68,3 +68,18 @@ def scrape_nhk_article(url: str) -> dict:
 
     # 本文を推定
     body_parts = []
+    for sel in ["div#content--story p", "article p", "div.main__body p"]:
+        ps = soup.select(sel)
+        if ps:
+            body_parts = [p.get_text(strip=True)
+                          for p in ps if p.get_text(strip=True)]
+            if body_parts:
+                break
+    body = "\n".join(body_parts) if body_parts else "(本文を取得できませんでした)"
+
+    return {
+        "url": final_url,
+        "title": title,
+        "published": published,
+        "body": body,
+    }
