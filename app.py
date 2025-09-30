@@ -44,13 +44,13 @@ def create_app():
 
     # ----------- ルーティング設定 -----------
 
-    @app.route("/")
+    @app.get("/")
     @requires_basic_auth
     def index():
         articles = Article.query.order_by(Article.id.desc()).all()
         return render_template("index.html", articles=articles)
 
-    @app.route("/scrape")
+    @app.post("/scrape")
     @requires_basic_auth
     def scrape():
         url = request.form.get("url", "").strip()
