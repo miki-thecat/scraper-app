@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
 from functools import wraps
 from base64 import b64decode
 from hmac import compare_digest
@@ -21,7 +21,10 @@ def check_auth(auth_header: str) -> bool:
         encoded = auth_header.split(" ")[1]
         userpass = b64decode(encoded).decode("utf-8")
         username, password = userpass.split(":", 1)
-        return compare_digest(username, USER) and compare_digest(password, PASS)
+        # 環境変数からではなく、appの設定から取得する
+        user_ok = compare_digest(username, current_app.config["BASIC_AUTH_USERNAME"])
+        pass_ok = compare_digest(password, current_app.config["BASIC_AUTH_PASSWORD"])
+        return user_ok and pass_ok
     except Exception:
         return False
 
