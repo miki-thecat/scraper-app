@@ -5,7 +5,7 @@ class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', 'change_me_secret')
 
     # DB接続
-    SQLALCHEMY_DATABASE_URI = os.getenv('DATABAESE_URI', 'sqlite:///local.db') 
+    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URI', 'sqlite:///local.db') 
 
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_pre_ping': True,  #接続が切れている場合に自動的に再接続する
