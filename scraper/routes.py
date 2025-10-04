@@ -1,11 +1,12 @@
 from base64 import b64decode
 from functools import wraps
 from hmac import compare_digest
+from urllib.parse import urlparse
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
 
 from .models import db, Article
-from .scraper import scrape_nhk_article
+from .scraper import scrape_nhk_article, scrape_yahoo_article
 
 # Blueprintを作成
 main = Blueprint('main', __name__)
@@ -49,8 +50,17 @@ def scrape():
         return redirect(url_for("main.index"))
     
     try:
-        data = scrape_nhk_article(url)
-        article = Article.query.filter_by(url=url).first()
+        parsed = urlparse(url)
+        netloc = parsed.netloc.lower()
+        if "nhk.or.jp" in netloc:
+            data = scrape_nhk_article(url)
+        elif "news.yahoo.co.jp" in netloc:
+            data = scrape_yahoo_article(url)
+        else:
+            flash("NHKまたはYahoo!ニュースのURLを指定してください", "error")
+            return redirect(url_for("main.index"))
+
+        article = Article.query.filter_by(url=data["url"]).first()
         if article:
             article.title = data["title"]
             article.body = data["body"]

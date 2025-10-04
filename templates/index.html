@@ -24,13 +24,13 @@
 <body>
     <header>
         <h1>スクレイピングアプリケーション</h1>
-        <p>NHKニュースのURLを入力して「スクレイピング開始」を押すと、記事が保存されて下の一覧に表示されます。</p>
+        <p>NHKニュースまたはYahoo!ニュースの記事URLを入力して「スクレイピング開始」を押すと、記事が保存されて下の一覧に表示されます。</p>
         <p><strong>Basic認証:</strong> ブラウザからアクセスする際に表示されるダイアログで、設定したユーザー名とパスワードを入力してください（デフォルトは <code>admin/password</code>）。</p>
     </header>
 
     <form action="/scrape" method="post">
         <label for="url">URLを入力してください:</label>
-        <input type="text" id="url" name="url" placeholder="https://www3.nhk.or.jp/news/..." required>
+        <input type="text" id="url" name="url" placeholder="https://www3.nhk.or.jp/news/... または https://news.yahoo.co.jp/..." required>
         <button type="submit">スクレイピング開始</button>
     </form>
 

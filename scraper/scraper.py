@@ -156,39 +156,43 @@ def scrape_nhk_article(url: str) -> dict:
     }
 
 def scrape_yahoo_article(url: str) -> dict:
-    """
-    Yahoo!ニュースの記事を伝統的な方法でスクレイピングする。
-    AIを使わず、BeautifulSoupでHTMLを直接解析する。
-    """
+    """Yahoo!ニュースの記事をスクレイピングし、Articleモデル互換のdictを返す。"""
     if YAHOO_DOMAIN not in url:
         raise ValueError("Yahoo!ニュースのURLを指定してください")
 
     final_url, html = fetch_html_with_selenium(url)
     soup = BeautifulSoup(html, "html.parser")
 
-    # タイトルを抽出
-    title_node = soup.select_one('article header h1')
+    title_node = soup.select_one("article header h1") or soup.select_one("h1")
     title = title_node.get_text(strip=True) if title_node else "(タイトル不明)"
 
-    # 公開日時を抽出
-    published_node = soup.select_one('time')
-    published = published_node.get_text(strip=True) if published_node else None
+    posted_at = None
+    time_node = soup.select_one("time")
+    if time_node:
+        raw_datetime = time_node.get("datetime") or time_node.get_text(strip=True)
+        if raw_datetime:
+            try:
+                posted_at = _parse_datetime(raw_datetime.strip())
+            except ValueError:
+                posted_at = None
+    if posted_at is None:
+        posted_at = datetime.utcnow()
 
-    # 本文を抽出
-    article_body_div = soup.select_one('div.article_body')
     body = "(本文を取得できませんでした)"
-    if article_body_div:
-        # 本文内のすべてのpタグからテキストを抽出
-        body_parts = [p.get_text(strip=True) for p in article_body_div.select('p')]
-        # 空の段落をフィルタリングして結合
-        body = "\n".join(part for part in body_parts if part)
+    for selector in ("div.article_body", "article p", "div#uamods-pickup p"):
+        container = soup.select_one(selector)
+        if container:
+            paragraphs = container.select("p") if container.name != "p" else [container]
+            texts = [p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True)]
+            if texts:
+                body = "\n".join(texts)
+                break
 
-    # 既存のArticleモデルの形式に合わせて返す
     return {
-        "final_url": final_url,
+        "url": final_url,
         "title": title,
-        "published_at": published,
         "body": body,
+        "posted_at": posted_at,
     }
 # --- 追記ここまで ---
 

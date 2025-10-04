@@ -28,24 +28,50 @@ def test_index_page(client):
     assert response.status_code == 200
     assert "スクレイピングアプリケーション".encode('utf-8') in response.data
 
-def test_scrape_success(client, mocker, app, auth_headers):
+def test_scrape_success_nhk(client, mocker, app, auth_headers):
     mock_data = {
-        "url": "http://example.com/article1",
-        "title": "テスト記事",
-        "body": "これはテスト記事の本文です。",
+        "url": "https://www3.nhk.or.jp/news/html/20240101/mock-article.html",
+        "title": "NHKテスト記事",
+        "body": "これはNHKのテスト本文です。",
         "posted_at": datetime.now()
     }
-    mocker.patch('scraper.routes.scrape_nhk_article', return_value=mock_data)
+    mock_nhk = mocker.patch('scraper.routes.scrape_nhk_article', return_value=mock_data)
+    mock_yahoo = mocker.patch('scraper.routes.scrape_yahoo_article')
 
-    response = client.post('/scrape', data={'url': 'http://example.com/article1'}, headers=auth_headers)
+    response = client.post('/scrape', data={'url': mock_data["url"]}, headers=auth_headers)
 
     assert response.status_code == 302
     assert response.location == "/"
+    mock_nhk.assert_called_once()
+    mock_yahoo.assert_not_called()
 
     with app.app_context():
-        article = Article.query.filter_by(url="http://example.com/article1").first()
+        article = Article.query.filter_by(url=mock_data["url"]).first()
         assert article is not None
-        assert article.title == "テスト記事"
+        assert article.title == mock_data["title"]
+
+
+def test_scrape_success_yahoo(client, mocker, app, auth_headers):
+    mock_data = {
+        "url": "https://news.yahoo.co.jp/articles/mock-article",
+        "title": "Yahooテスト記事",
+        "body": "これはYahooのテスト本文です。",
+        "posted_at": datetime.now()
+    }
+    mock_nhk = mocker.patch('scraper.routes.scrape_nhk_article')
+    mock_yahoo = mocker.patch('scraper.routes.scrape_yahoo_article', return_value=mock_data)
+
+    response = client.post('/scrape', data={'url': mock_data["url"]}, headers=auth_headers)
+
+    assert response.status_code == 302
+    assert response.location == "/"
+    mock_yahoo.assert_called_once()
+    mock_nhk.assert_not_called()
+
+    with app.app_context():
+        article = Article.query.filter_by(url=mock_data["url"]).first()
+        assert article is not None
+        assert article.title == mock_data["title"]
 
 def test_scrape_auth_failure(client):
     response = client.post('/scrape', data={'url': 'http://example.com/article1'})
