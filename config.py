@@ -1,14 +1,14 @@
 import os
 
 class Config:
-    # Flask settings
     SECRET_KEY = os.getenv('SECRET_KEY', 'change_me_secret')
+    BASIC_AUTH_USERNAME = os.getenv("BASIC_AUTH_USERNAME", "admin")
+    BASIC_AUTH_PASSWORD = os.getenv("BASIC_AUTH_PASSWORD", "password")
+    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URI', 'sqlite:///local.db')
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    # DB接続
-    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URI', 'sqlite:///local.db') 
-
-    SQLALCHEMY_ENGINE_OPTIONS = {
-        'pool_pre_ping': True,  #接続が切れている場合に自動的に再接続する
-    }
-
-    SQLALCHEMY_TRACK_MODIFICATIONS = False # 無駄な警告をやめる
+class TestConfig(Config):
+    TESTING = True
+    BASIC_AUTH_USERNAME = 'test'
+    BASIC_AUTH_PASSWORD = 'test'
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
