@@ -1,5 +1,7 @@
 import time
+from datetime import datetime
 from urllib.parse import urlparse
+
 from bs4 import BeautifulSoup
 import json
 import shlex
@@ -16,6 +18,28 @@ YAHOO_DOMAIN = "news.yahoo.co.jp"
 # Dev Container でインストール済みの Chromium / chromedriver のパス
 CHROMIUM_BINARY = "/usr/bin/chromium"
 CHROMEDRIVER_BINARY = "/usr/bin/chromedriver"
+
+
+def _parse_datetime(raw: str) -> datetime:
+    """NHKやYahooの記事で使われる日時文字列をdatetimeに変換する。"""
+    normalized = raw.replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(normalized)
+    except ValueError:
+        pass
+
+    # 例: "2024年10月3日 12時34分" のような形式にも対応する
+    for fmt in (
+        "%Y年%m月%d日 %H時%M分",
+        "%Y/%m/%d %H:%M",
+        "%Y-%m-%d %H:%M",
+    ):
+        try:
+            return datetime.strptime(raw, fmt)
+        except ValueError:
+            continue
+
+    raise ValueError(f"Unknown datetime format: {raw}")
 
 # ChromeDriver を自動操作するためのドライバを生成する
 def _build_driver() -> webdriver.Chrome:
@@ -89,13 +113,29 @@ def scrape_nhk_article(url: str) -> dict:
     if not title:
         title = soup.title.get_text(strip=True) if soup.title else "(タイトル不明)"
 
-    # 日時指定
-    published = None
-    for sel in ["time[datetime]", "p.content--date-time", "time"]:
+    posted_at = None
+    for sel in ["time[datetime]", "time", "p.content--date-time"]:
         node = soup.select_one(sel)
-        if node and node.get_text(strip=True):
-            published = node.get_text(strip=True)
+        if not node:
+            continue
+
+        if node.has_attr("datetime"):
+            raw = node.get("datetime")
+        else:
+            raw = node.get_text(strip=True)
+
+        if not raw:
+            continue
+
+        raw = raw.strip()
+        try:
+            posted_at = _parse_datetime(raw)
             break
+        except ValueError:
+            continue
+
+    if posted_at is None:
+        posted_at = datetime.utcnow()
 
     # 本文を推定
     body_parts = []
@@ -111,8 +151,8 @@ def scrape_nhk_article(url: str) -> dict:
     return {
         "url": final_url,
         "title": title,
-        "published": published,
         "body": body,
+        "posted_at": posted_at,
     }
 
 def scrape_yahoo_article(url: str) -> dict:
