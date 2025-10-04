@@ -1,8 +1,8 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
-from functools import wraps
 from base64 import b64decode
+from functools import wraps
 from hmac import compare_digest
-import os
+
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
 
 from .models import db, Article
 from .scraper import scrape_nhk_article
@@ -11,9 +11,6 @@ from .scraper import scrape_nhk_article
 main = Blueprint('main', __name__)
 
 # --- Basic認証 --- #
-USER = os.getenv("BASIC_AUTH_USERNAME", "admin")
-PASS = os.getenv("BASIC_AUTH_PASSWORD", "password")
-
 def check_auth(auth_header: str) -> bool:
     if not auth_header or not auth_header.startswith("Basic "):
         return False
