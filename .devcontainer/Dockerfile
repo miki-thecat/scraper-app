@@ -2,7 +2,7 @@ FROM mcr.microsoft.com/devcontainers/python:3.11
 
 # ChromeとChromedriverをインストール
 RUN apt-get update && apt-get install -y \
-    chromium chromium-driver fonts-ipafont \
+    chromium chromium-driver fonts-ipafont sqlite3 libpq-dev build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 # Pythonライブラリ
