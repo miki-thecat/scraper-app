@@ -85,6 +85,11 @@ def test_result_page_displays_article(app, client, auth_header):
     assert "段落2" in text
 
 
+def test_result_page_not_found_returns_404(client, auth_header):
+    resp = client.get("/result/does-not-exist", headers=auth_header)
+    assert resp.status_code == 404
+
+
 def test_result_ai_page_displays_inference(app, client, auth_header):
     with app.app_context():
         article = Article(
