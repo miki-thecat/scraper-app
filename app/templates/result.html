@@ -27,6 +27,11 @@
 </section>
 
 <section class="inference">
+    {% if config.get('ENABLE_AI', True) %}
+    <form class="inference__actions" method="post" action="{{ url_for('main.rerun_ai', article_id=article.id) }}">
+        <button type="submit">{% if inference %}AI推論を再実行{% else %}AI推論を実行{% endif %}</button>
+    </form>
+    {% endif %}
     {% if inference %}
     <h3>AIリスク評価</h3>
     <div class="inference__score">リスクスコア: <strong>{{ inference.risk_score }}</strong></div>

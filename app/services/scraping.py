@@ -5,7 +5,7 @@ from typing import Any, Final
 from urllib.parse import urlparse
 
 import requests
-from requests import Response
+from requests import HTTPError, Response
 from requests.adapters import HTTPAdapter, Retry
 
 from flask import current_app, has_app_context
@@ -70,6 +70,13 @@ def fetch(url: str) -> Response:
         if response.encoding is None:
             response.encoding = response.apparent_encoding
         return response
+    except requests.Timeout as exc:
+        logger.warning("Scraping timeout for %s", url, exc_info=exc)
+        raise ScrapeError("記事の取得がタイムアウトしました。時間をおいて再度お試しください。") from exc
+    except HTTPError as exc:
+        status = exc.response.status_code if exc.response is not None else "?"
+        logger.warning("HTTP error %s while fetching %s", status, url, exc_info=exc)
+        raise ScrapeError(f"記事の取得に失敗しました (HTTP {status}).") from exc
     except requests.RequestException as exc:  # pragma: no cover - 通信周りはモック化
-        logger.exception("Failed to fetch article: %s", exc)
-        raise ScrapeError("記事の取得に失敗しました。") from exc
+        logger.warning("Request error while fetching %s", url, exc_info=exc)
+        raise ScrapeError("記事の取得に失敗しました。ネットワークをご確認ください。") from exc

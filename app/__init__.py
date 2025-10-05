@@ -17,9 +17,10 @@ def create_app(config_class: type[Config] | None = None) -> Flask:
     db.init_app(app)
     init_db(app)
 
-    from .routes import bp as main_bp
+    from .routes import api_bp, bp as main_bp
 
     app.register_blueprint(main_bp)
+    app.register_blueprint(api_bp)
 
     # CLI登録
     from .cli import register_cli_commands

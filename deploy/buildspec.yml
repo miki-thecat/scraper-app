@@ -13,10 +13,10 @@ phases:
       - python ml/evaluate.py --valid ml/data/valid.csv || true
   build:
     commands:
-      - echo "Build stage: place for docker build or packaging"
+      - bash deploy/deploy.sh
   post_build:
     commands:
-      - echo "Deploy stage: implement SCP/SSM/ECR deploy here"
+      - echo "Build artifacts stored under build/"
 artifacts:
   files:
     - deploy/nginx.conf

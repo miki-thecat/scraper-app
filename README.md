@@ -34,6 +34,27 @@ python ml/evaluate.py --valid ml/data/valid.csv
 
 `ml/data/` 配下にサンプルの学習/検証データを同梱しています。必要に応じて追記・差し替えしてください。
 
+## API エンドポイント
+
+すべてのエンドポイントは Basic 認証（`.env` で設定）を通過する必要があります。
+
+| メソッド | パス | 説明 |
+| --- | --- | --- |
+| `GET` | `/api/articles` | 記事の一覧。`q`/`start`/`end`/`page`/`per_page` で絞り込み・ページング可能。|
+| `GET` | `/api/articles/<article_id>` | 単一記事の詳細を取得。|
+| `POST` | `/api/articles` | スクレイピングして記事を作成。`force` で再スクレイプ、`run_ai`/`force_ai` で AI の実行制御が可能。|
+
+リクエスト例:
+
+```bash
+curl -u admin:password -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://news.yahoo.co.jp/articles/example", "force_ai": true}' \
+  http://localhost:5000/api/articles
+```
+
 ## デプロイ
 
 `deploy/` ディレクトリにNginx設定、systemdユニット、CodeBuild用`buildspec.yml`を用意しています。AWS EC2 + RDS構成を想定しています。
+
+`deploy/deploy.sh` は CodeBuild から呼び出され、アプリを `build/app.tar.gz` にパッケージし、`EC2_HOST` が設定されている場合は SCP + systemd 再起動で EC2 に反映します。
