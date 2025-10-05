@@ -26,7 +26,7 @@ def load_dataset(path: Path) -> tuple[pd.Series, pd.Series]:
 
 def build_pipeline() -> Pipeline:
     vectorizer = TfidfVectorizer(analyzer="char", ngram_range=(2, 5), min_df=2)
-    classifier = LogisticRegression(max_iter=1000, solver="lbfgs", multi_class="auto")
+    classifier = LogisticRegression(max_iter=1000, solver="lbfgs")
     pipeline = Pipeline([
         ("vectorizer", vectorizer),
         ("classifier", classifier),
