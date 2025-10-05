@@ -1,0 +1,15 @@
+[Unit]
+Description=Scraper Flask App
+After=network.target
+
+[Service]
+User=ec2-user
+WorkingDirectory=/var/www/app
+Environment="FLASK_ENV=production"
+EnvironmentFile=/var/www/app/.env
+ExecStart=/usr/bin/gunicorn -w 4 -b 127.0.0.1:8080 'app.main:app'
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

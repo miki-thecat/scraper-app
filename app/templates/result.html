@@ -1,0 +1,44 @@
+{% extends 'layout.html' %}
+
+{% block title %}記事詳細 - スクレイピングアプリケーション{% endblock %}
+
+{% block content %}
+<nav class="breadcrumbs">
+    <a href="{{ url_for('main.index') }}">&larr; 一覧へ戻る</a>
+</nav>
+
+<section class="detail">
+    <header class="detail__header">
+        <h2>{{ article.title }}</h2>
+        <p class="detail__meta">
+            <span class="detail__label">公開日時:</span>
+            <time datetime="{{ article.published_at.isoformat() if article.published_at else '' }}">
+                {{ article.published_at.strftime('%Y-%m-%d %H:%M') if article.published_at else '日時不明' }}
+            </time>
+        </p>
+        <p class="detail__meta"><span class="detail__label">URL:</span> <a href="{{ article.url }}" target="_blank" rel="noreferrer noopener">{{ article.url }}</a></p>
+    </header>
+
+    <article class="detail__body">
+        {% for paragraph in article.body.split('\n\n') %}
+        <p>{{ paragraph }}</p>
+        {% endfor %}
+    </article>
+</section>
+
+<section class="inference">
+    {% if inference %}
+    <h3>AIリスク評価</h3>
+    <div class="inference__score">リスクスコア: <strong>{{ inference.risk_score }}</strong></div>
+    <div class="inference__summary">
+        <h4>要約</h4>
+        {% for paragraph in inference.summary.split('\n') %}
+        <p>{{ paragraph }}</p>
+        {% endfor %}
+    </div>
+    <p class="inference__meta">モデル: {{ inference.model }} / プロンプト: {{ inference.prompt_version }}</p>
+    {% else %}
+    <p>AI推論は未実行です。<a href="{{ url_for('main.result_ai', article_id=article.id) }}">AI推論ページへ</a></p>
+    {% endif %}
+</section>
+{% endblock %}

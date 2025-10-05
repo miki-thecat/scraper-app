@@ -1,0 +1,64 @@
+{% extends 'layout.html' %}
+
+{% block title %}トップ - スクレイピングアプリケーション{% endblock %}
+
+{% block content %}
+<form class="scrape-form" method="post" action="{{ url_for('main.scrape') }}">
+    <label for="url" class="sr-only">スクレイピングするURLを入力</label>
+    <input id="url" name="url" type="url" placeholder="スクレイピングするURLを入力" required>
+    <button type="submit">実行</button>
+</form>
+
+<section class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>タイトル</th>
+                <th>リスクスコア</th>
+                <th>要約</th>
+                <th>本文</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if articles %}
+                {% for article in articles %}
+                <tr>
+                    <td>
+                        <div class="cell-title">
+                            <a href="{{ url_for('main.result', article_id=article.id) }}">{{ article.title }}</a>
+                            <div class="cell-sub">
+                                <time datetime="{{ article.published_at.isoformat() if article.published_at else '' }}">
+                                    {{ article.published_at.strftime('%Y-%m-%d %H:%M') if article.published_at else '日時不明' }}
+                                </time>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="cell-score">
+                        {% if article.inference %}
+                            {{ article.inference.risk_score }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if article.inference %}
+                            <p class="cell-text">{{ article.inference.summary }}</p>
+                        {% else %}
+                            <a href="{{ url_for('main.result_ai', article_id=article.id) }}" class="link-inline">AI推論を見る</a>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <p class="cell-text">{{ article.body }}</p>
+                        <div class="cell-sub"><a href="{{ article.url }}" target="_blank" rel="noreferrer noopener">元記事</a></div>
+                    </td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="4" class="empty">まだ記事は登録されていません</td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}

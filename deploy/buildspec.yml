@@ -1,0 +1,26 @@
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      python: 3.11
+    commands:
+      - pip install --upgrade pip
+      - pip install -r requirements.txt
+  pre_build:
+    commands:
+      - pytest -q
+      - python ml/train.py --train ml/data/train.csv --valid ml/data/valid.csv || true
+      - python ml/evaluate.py --valid ml/data/valid.csv || true
+  build:
+    commands:
+      - echo "Build stage: place for docker build or packaging"
+  post_build:
+    commands:
+      - echo "Deploy stage: implement SCP/SSM/ECR deploy here"
+artifacts:
+  files:
+    - deploy/nginx.conf
+    - deploy/buildspec.yml
+    - app/**/*
+    - ml/**/*
+    - cli/**/*

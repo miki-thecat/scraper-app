@@ -1,0 +1,3 @@
+ app/models/article.py のリレーション型注釈を修正して pytest -q が通るようにしてください。修正が完了したら、手順・結果・残課題を docs/handover.md に追記し、小さな粒度でコ
+  ミットして feature/full-spec にマージしてください。
+maik
