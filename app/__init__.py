@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from flask import Flask
+from collections import defaultdict, deque
+from time import time
+
+from flask import Flask, jsonify, request
 
 from .config import Config
 from .models.db import db, init_db
@@ -27,4 +30,43 @@ def create_app(config_class: type[Config] | None = None) -> Flask:
 
     register_cli_commands(app)
 
+    _init_rate_limiter(app)
+
     return app
+
+
+from typing import DefaultDict
+
+
+_RATE_BUCKETS: DefaultDict[tuple[str, str], deque[float]] = defaultdict(deque)
+
+
+def _rate_limit_key() -> tuple[str, str]:
+    ip = request.headers.get("X-Forwarded-For", request.remote_addr or "")
+    auth = request.headers.get("Authorization", "") or request.headers.get("X-API-Key", "")
+    return ip, auth
+
+
+def _init_rate_limiter(app: Flask) -> None:
+    window = 60.0
+
+    @app.before_request
+    def _apply_rate_limit():
+        limit_per_minute = app.config.get("RATE_LIMIT_PER_MINUTE", 60)
+        if limit_per_minute <= 0:
+            return None
+        if request.blueprint != "api":
+            return None
+
+        key = _rate_limit_key()
+        bucket = _RATE_BUCKETS[key]
+        now = time()
+
+        while bucket and now - bucket[0] > window:
+            bucket.popleft()
+
+        if len(bucket) >= limit_per_minute:
+            return jsonify({"error": "Too Many Requests"}), 429
+
+        bucket.append(now)
+        return None

@@ -42,6 +42,29 @@
         {% endfor %}
     </div>
     <p class="inference__meta">モデル: {{ inference.model }} / プロンプト: {{ inference.prompt_version }}</p>
+    {% if article.inferences|length > 1 %}
+    <div class="inference__history">
+        <h4>推論履歴</h4>
+        <table>
+            <thead>
+                <tr>
+                    <th>日時</th>
+                    <th>リスク</th>
+                    <th>モデル</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in article.inferences %}
+                <tr>
+                    <td>{{ record.created_at.strftime('%Y-%m-%d %H:%M') if record.created_at else '不明' }}</td>
+                    <td>{{ record.risk_score }}</td>
+                    <td>{{ record.model }} ({{ record.prompt_version }})</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
     {% else %}
     <p>AI推論は未実行です。<a href="{{ url_for('main.result_ai', article_id=article.id) }}">AI推論ページへ</a></p>
     {% endif %}

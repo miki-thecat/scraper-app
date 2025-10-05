@@ -12,6 +12,14 @@ def test_api_list_requires_auth(client):
     assert resp.status_code == 401
 
 
+def test_api_accepts_bearer_token(app, client):
+    with app.app_context():
+        app.config["API_ACCESS_TOKENS"] = ("test-token",)
+
+    resp = client.get("/api/articles", headers={"Authorization": "Bearer test-token"})
+    assert resp.status_code == 200
+
+
 def test_api_create_article_success(app, client, auth_header, mocker):
     with app.app_context():
         app.config["ENABLE_AI"] = True
@@ -33,6 +41,7 @@ def test_api_create_article_success(app, client, auth_header, mocker):
     assert data["status"] == "created"
     assert data["article"]["title"] == "APIタイトル"
     assert data["ai"]["run"] is True
+    assert len(data["article"]["inference_history"]) == 1
 
     with app.app_context():
         app.config["ENABLE_AI"] = False
@@ -63,6 +72,7 @@ def test_api_create_article_cached(app, client, auth_header, mocker):
     data = resp.get_json()
     assert resp.status_code == 200
     assert data["status"] == "cached"
+    assert data["article"]["inference"] is None
 
 
 def test_api_create_article_force_update(app, client, auth_header, mocker):
@@ -92,3 +102,20 @@ def test_api_create_article_force_update(app, client, auth_header, mocker):
     assert data["status"] == "updated"
     assert data["article"]["title"] == "新タイトル"
     assert data["ai"]["run"] is False
+    assert data["article"]["inference_history"] == []
+
+
+def test_api_rate_limit(app, client, auth_header):
+    from app import _RATE_BUCKETS
+
+    with app.app_context():
+        app.config["RATE_LIMIT_PER_MINUTE"] = 2
+
+    _RATE_BUCKETS.clear()
+    client.get("/api/articles", headers=auth_header)
+    client.get("/api/articles", headers=auth_header)
+    resp = client.get("/api/articles", headers=auth_header)
+    assert resp.status_code == 429
+    _RATE_BUCKETS.clear()
+    with app.app_context():
+        app.config["RATE_LIMIT_PER_MINUTE"] = 1000

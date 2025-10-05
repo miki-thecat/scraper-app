@@ -80,6 +80,18 @@ def test_index_pagination(app, client, auth_header):
     assert "2 /" in text2
 
 
+def test_index_sorting_by_title(app, client, auth_header):
+    with app.app_context():
+        a = Article(url="https://news.yahoo.co.jp/articles/a", title="あ", published_at=None, body="本文")
+        b = Article(url="https://news.yahoo.co.jp/articles/b", title="い", published_at=None, body="本文")
+        db.session.add_all([b, a])
+        db.session.commit()
+
+    resp = client.get("/?sort=title&order=asc", headers=auth_header)
+    text = resp.get_data(as_text=True)
+    assert text.index("あ") < text.index("い")
+
+
 def test_scrape_creates_article(app, client, auth_header, mocker):
     url = "https://news.yahoo.co.jp/articles/example"
     parsed = parsing.ParsedArticle(url=url, title="タイトル", published_at=datetime.utcnow(), body="本文")
@@ -167,6 +179,7 @@ def test_result_ai_page_displays_inference(app, client, auth_header):
     assert "リスクスコア" in text
     assert "88" in text
     assert "要約1" in text and "要約2" in text
+    assert "推論履歴" not in text
 
 
 def test_scrape_failure_flash_message(app, client, auth_header, mocker):
@@ -200,14 +213,27 @@ def test_rerun_ai_updates_inference(app, client, auth_header, mocker):
 
     mocker.patch(
         "app.routes.ai_service.summarize_and_score",
-        return_value=mocker.Mock(
-            summary="再実行の要約",
-            risk_score=77,
-            model="gpt-test",
-            prompt_version="v2",
-        ),
+        side_effect=[
+            mocker.Mock(
+                summary="初回要約",
+                risk_score=60,
+                model="gpt-test",
+                prompt_version="v2",
+            ),
+            mocker.Mock(
+                summary="再実行の要約",
+                risk_score=77,
+                model="gpt-test",
+                prompt_version="v3",
+            ),
+        ],
     )
 
+    first_resp = client.post(
+        f"/result_ai/{article_id}/rerun",
+        headers=auth_header,
+        follow_redirects=True,
+    )
     resp = client.post(
         f"/result_ai/{article_id}/rerun",
         headers=auth_header,
@@ -217,11 +243,19 @@ def test_rerun_ai_updates_inference(app, client, auth_header, mocker):
     with app.app_context():
         app.config["ENABLE_AI"] = False
 
+    assert first_resp.status_code == 200
     assert resp.status_code == 200
     text = resp.get_data(as_text=True)
     assert "AI推論を再実行しました" in text
-    assert "再実行の要約" in text
     assert "77" in text
+    assert "推論履歴" in text
+    assert text.count("gpt-test") >= 2
+
+    with app.app_context():
+        refreshed = db.session.get(Article, article_id)
+        assert refreshed is not None
+        assert len(refreshed.inferences) == 2
+        assert refreshed.latest_inference.summary == "再実行の要約"
 
 
 def test_rerun_ai_respects_disable(app, client, auth_header):

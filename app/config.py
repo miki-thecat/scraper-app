@@ -19,6 +19,11 @@ class Config:
     # Basic Auth
     BASIC_AUTH_USERNAME = os.getenv("BASIC_AUTH_USERNAME", "admin")
     BASIC_AUTH_PASSWORD = os.getenv("BASIC_AUTH_PASSWORD", "password")
+    API_ACCESS_TOKENS = tuple(
+        token.strip()
+        for token in os.getenv("API_ACCESS_TOKENS", "").split(",")
+        if token.strip()
+    )
 
     # Request / scraping constraints
     REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "10"))
@@ -28,6 +33,7 @@ class Config:
         "SCRAPER_USER_AGENT",
         "Mozilla/5.0 (compatible; ScraperApp/1.0; +https://example.com/bot)",
     )
+    RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))
 
     # OpenAI / AI settings
     OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
@@ -47,6 +53,8 @@ class TestConfig(Config):
     BASIC_AUTH_USERNAME = "test"
     BASIC_AUTH_PASSWORD = "test"
     ENABLE_AI = False
+    API_ACCESS_TOKENS = ("test-token",)
+    RATE_LIMIT_PER_MINUTE = 1000
 
 
 class DevConfig(Config):

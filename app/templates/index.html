@@ -27,6 +27,8 @@
             <button type="submit">絞り込み</button>
             <a class="search-form__reset" href="{{ url_for('main.index') }}">リセット</a>
         </div>
+        <input type="hidden" name="sort" value="{{ filters.sort }}">
+        <input type="hidden" name="order" value="{{ filters.order }}">
     </form>
 </section>
 
@@ -34,10 +36,29 @@
     <table>
         <thead>
             <tr>
-                <th>タイトル</th>
+                <th>
+                    {% set next_order = 'asc' if filters.sort != 'title' or filters.order == 'desc' else 'desc' %}
+                    <a href="{{ url_for('main.index', q=filters.q or None, start=filters.start or None, end=filters.end or None, sort='title', order=next_order) }}">
+                        タイトル
+                        {% if filters.sort == 'title' %}<span class="sort-indicator">{{ '▲' if filters.order == 'asc' else '▼' }}</span>{% endif %}
+                    </a>
+                </th>
                 <th>リスクスコア</th>
-                <th>要約</th>
-                <th>本文</th>
+                <th>
+                    {% set next_order = 'asc' if filters.sort != 'published_at' or filters.order == 'desc' else 'desc' %}
+                    <a href="{{ url_for('main.index', q=filters.q or None, start=filters.start or None, end=filters.end or None, sort='published_at', order=next_order) }}">
+                        公開日時
+                        {% if filters.sort == 'published_at' %}<span class="sort-indicator">{{ '▲' if filters.order == 'asc' else '▼' }}</span>{% endif %}
+                    </a>
+                </th>
+                <th>
+                    {% set next_order = 'asc' if filters.sort != 'created_at' or filters.order == 'desc' else 'desc' %}
+                    <a href="{{ url_for('main.index', q=filters.q or None, start=filters.start or None, end=filters.end or None, sort='created_at', order=next_order) }}">
+                        登録日時
+                        {% if filters.sort == 'created_at' %}<span class="sort-indicator">{{ '▲' if filters.order == 'asc' else '▼' }}</span>{% endif %}
+                    </a>
+                </th>
+                <th>AI情報</th>
             </tr>
         </thead>
         <tbody>
@@ -47,23 +68,28 @@
                     <td>
                         <div class="cell-title">
                             <a href="{{ url_for('main.result', article_id=article.id) }}">{{ article.title }}</a>
-                            <div class="cell-sub">
-                                <time datetime="{{ article.published_at.isoformat() if article.published_at else '' }}">
-                                    {{ article.published_at.strftime('%Y-%m-%d %H:%M') if article.published_at else '日時不明' }}
-                                </time>
-                            </div>
                         </div>
                     </td>
                     <td class="cell-score">
-                        {% if article.inference %}
-                            {{ article.inference.risk_score }}
+                        {% if article.latest_inference %}
+                            {{ article.latest_inference.risk_score }}
                         {% else %}
                             —
                         {% endif %}
                     </td>
                     <td>
-                        {% if article.inference %}
-                            <p class="cell-text">{{ article.inference.summary }}</p>
+                        <time datetime="{{ article.published_at.isoformat() if article.published_at else '' }}">
+                            {{ article.published_at.strftime('%Y-%m-%d %H:%M') if article.published_at else '日時不明' }}
+                        </time>
+                    </td>
+                    <td>
+                        <time datetime="{{ article.created_at.isoformat() if article.created_at else '' }}">
+                            {{ article.created_at.strftime('%Y-%m-%d %H:%M') if article.created_at else '日時不明' }}
+                        </time>
+                    </td>
+                    <td>
+                        {% if article.latest_inference %}
+                            <p class="cell-text">{{ article.latest_inference.summary }}</p>
                         {% else %}
                             <a href="{{ url_for('main.result_ai', article_id=article.id) }}" class="link-inline">AI推論を見る</a>
                         {% endif %}
@@ -76,7 +102,7 @@
                 {% endfor %}
             {% else %}
                 <tr>
-                    <td colspan="4" class="empty">該当する記事がありません</td>
+                    <td colspan="5" class="empty">該当する記事がありません</td>
                 </tr>
             {% endif %}
         </tbody>
@@ -87,9 +113,9 @@
 <nav class="pagination">
     {% set prev_page = pagination.page - 1 %}
     {% set next_page = pagination.page + 1 %}
-    <a class="pagination__link{% if not pagination.has_prev %} is-disabled{% endif %}" href="{{ url_for('main.index', page=prev_page, q=filters.q or None, start=filters.start or None, end=filters.end or None) if pagination.has_prev else '#' }}">&larr; 前へ</a>
+    <a class="pagination__link{% if not pagination.has_prev %} is-disabled{% endif %}" href="{{ url_for('main.index', page=prev_page, q=filters.q or None, start=filters.start or None, end=filters.end or None, sort=filters.sort, order=filters.order) if pagination.has_prev else '#' }}">&larr; 前へ</a>
     <span class="pagination__info">{{ pagination.page }} / {{ pagination.pages }}</span>
-    <a class="pagination__link{% if not pagination.has_next %} is-disabled{% endif %}" href="{{ url_for('main.index', page=next_page, q=filters.q or None, start=filters.start or None, end=filters.end or None) if pagination.has_next else '#' }}">次へ &rarr;</a>
+    <a class="pagination__link{% if not pagination.has_next %} is-disabled{% endif %}" href="{{ url_for('main.index', page=next_page, q=filters.q or None, start=filters.start or None, end=filters.end or None, sort=filters.sort, order=filters.order) if pagination.has_next else '#' }}">次へ &rarr;</a>
 </nav>
 {% endif %}
 {% endblock %}

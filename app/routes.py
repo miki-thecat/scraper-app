@@ -30,8 +30,18 @@ bp = Blueprint("main", __name__)
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 
 
+def _allowed_tokens() -> set[str]:
+    tokens = current_app.config.get("API_ACCESS_TOKENS", ())
+    return {tok for tok in tokens if tok}
+
+
 def _check_auth(header: str | None) -> bool:
     if not header or not header.startswith("Basic "):
+        if not header:
+            return False
+        if header.startswith("Bearer "):
+            token = header.split(" ", 1)[1].strip()
+            return token in _allowed_tokens()
         return False
     try:
         encoded = header.split(" ", 1)[1]
@@ -49,6 +59,9 @@ def requires_basic_auth(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
         if not _check_auth(request.headers.get("Authorization")):
+            api_key = request.headers.get("X-API-Key")
+            if api_key and api_key in _allowed_tokens():
+                return view(*args, **kwargs)
             resp = Response("Unauthorized", status=401)
             resp.headers["WWW-Authenticate"] = 'Basic realm="Restricted"'
             return resp
@@ -66,7 +79,13 @@ def _parse_date(value: str | None) -> datetime | None:
         return None
 
 
-def _article_select(search_query: str, start_date: datetime | None, end_date: datetime | None):
+def _article_select(
+    search_query: str,
+    start_date: datetime | None,
+    end_date: datetime | None,
+    sort_key: str = "published_at",
+    order: str = "desc",
+):
     stmt = select(Article)
 
     if search_query:
@@ -83,11 +102,29 @@ def _article_select(search_query: str, start_date: datetime | None, end_date: da
     if end_date is not None:
         stmt = stmt.where(Article.published_at <= end_date)
 
-    return stmt.order_by(Article.published_at.desc(), Article.created_at.desc())
+    sort_columns = {
+        "published_at": Article.published_at,
+        "created_at": Article.created_at,
+        "title": Article.title,
+    }
+    column = sort_columns.get(sort_key, Article.published_at)
+    direction = column.desc() if order == "desc" else column.asc()
+
+    return stmt.order_by(direction, Article.created_at.desc())
 
 
 def _article_to_dict(article: Article) -> dict[str, Any]:
-    inference = article.inference
+    history = [
+        {
+            "id": record.id,
+            "risk_score": record.risk_score,
+            "summary": record.summary,
+            "model": record.model,
+            "prompt_version": record.prompt_version,
+            "created_at": record.created_at.isoformat() if record.created_at else None,
+        }
+        for record in article.inferences
+    ]
     return {
         "id": article.id,
         "url": article.url,
@@ -95,16 +132,8 @@ def _article_to_dict(article: Article) -> dict[str, Any]:
         "published_at": article.published_at.isoformat() if article.published_at else None,
         "body": article.body,
         "created_at": article.created_at.isoformat() if article.created_at else None,
-        "inference": None
-        if inference is None
-        else {
-            "id": inference.id,
-            "risk_score": inference.risk_score,
-            "summary": inference.summary,
-            "model": inference.model,
-            "prompt_version": inference.prompt_version,
-            "created_at": inference.created_at.isoformat() if inference.created_at else None,
-        },
+        "inference": history[0] if history else None,
+        "inference_history": history,
     }
 
 
@@ -120,11 +149,18 @@ def index():
     search_query = request.args.get("q", "").strip()
     start_date_raw = request.args.get("start")
     end_date_raw = request.args.get("end")
+    sort_key = request.args.get("sort", "published_at")
+    order = request.args.get("order", "desc")
+
+    if sort_key not in {"published_at", "created_at", "title"}:
+        sort_key = "published_at"
+    if order not in {"asc", "desc"}:
+        order = "desc"
 
     start_date = _parse_date(start_date_raw)
     end_date = _parse_date(end_date_raw)
 
-    stmt = _article_select(search_query, start_date, end_date)
+    stmt = _article_select(search_query, start_date, end_date, sort_key, order)
 
     pagination = db.paginate(stmt, page=page, per_page=20, error_out=False)
 
@@ -136,6 +172,8 @@ def index():
             "q": search_query,
             "start": start_date_raw or "",
             "end": end_date_raw or "",
+            "sort": sort_key,
+            "order": order,
         },
     )
 
@@ -204,7 +242,11 @@ def result(article_id: str):
     article = db.session.get(Article, article_id)
     if article is None:
         abort(404)
-    return render_template("result.html", article=article, inference=None)
+    return render_template(
+        "result.html",
+        article=article,
+        inference=article.latest_inference,
+    )
 
 
 @bp.get("/result_ai/<article_id>")
@@ -213,7 +255,7 @@ def result_ai(article_id: str):
     article = db.session.get(Article, article_id)
     if article is None:
         abort(404)
-    inference = article.inference
+    inference = article.latest_inference
     if inference is None:
         flash("AI推論はまだ利用できません。", "info")
         return redirect(url_for("main.result", article_id=article.id))
@@ -237,21 +279,14 @@ def rerun_ai(article_id: str):
         flash(str(exc), "error")
         return redirect(url_for("main.result", article_id=article.id))
 
-    inference = article.inference
-    if inference is None:
-        inference = InferenceResult(
-            article_id=article.id,
-            risk_score=ai_result.risk_score,
-            summary=ai_result.summary,
-            model=ai_result.model,
-            prompt_version=ai_result.prompt_version,
-        )
-        db.session.add(inference)
-    else:
-        inference.risk_score = ai_result.risk_score
-        inference.summary = ai_result.summary
-        inference.model = ai_result.model
-        inference.prompt_version = ai_result.prompt_version
+    inference = InferenceResult(
+        article_id=article.id,
+        risk_score=ai_result.risk_score,
+        summary=ai_result.summary,
+        model=ai_result.model,
+        prompt_version=ai_result.prompt_version,
+    )
+    db.session.add(inference)
 
     db.session.commit()
     flash("AI推論を再実行しました。", "success")
@@ -275,8 +310,14 @@ def api_list_articles():
     search_query = request.args.get("q", "").strip()
     start_date = _parse_date(request.args.get("start"))
     end_date = _parse_date(request.args.get("end"))
+    sort_key = request.args.get("sort", "published_at")
+    order = request.args.get("order", "desc")
+    if sort_key not in {"published_at", "created_at", "title"}:
+        sort_key = "published_at"
+    if order not in {"asc", "desc"}:
+        order = "desc"
 
-    stmt = _article_select(search_query, start_date, end_date)
+    stmt = _article_select(search_query, start_date, end_date, sort_key, order)
     pagination = db.paginate(stmt, page=page, per_page=per_page, error_out=False)
 
     return jsonify(
@@ -313,7 +354,7 @@ def api_create_article():
     if not scraping.is_allowed(url):
         return jsonify({"error": "Yahoo!ニュースの記事URLのみ対応しています。"}), 400
 
-    article = Article.query.filter_by(url=url).first()
+    article = db.session.scalar(select(Article).where(Article.url == url))
     status = "cached"
     parsed = None
 
@@ -352,27 +393,22 @@ def api_create_article():
     ai_ran = False
     ai_error: str | None = None
 
-    if run_ai and ai_enabled and (force_ai or article.inference is None or needs_fetch):
+    latest = article.latest_inference
+
+    if run_ai and ai_enabled and (force_ai or latest is None or needs_fetch):
         try:
             ai_result = ai_service.summarize_and_score(article.title, article.body[:4000])
         except ai_service.AIServiceUnavailable as exc:
             ai_error = str(exc)
         else:
-            inference = article.inference
-            if inference is None:
-                inference = InferenceResult(
-                    article_id=article.id,
-                    risk_score=ai_result.risk_score,
-                    summary=ai_result.summary,
-                    model=ai_result.model,
-                    prompt_version=ai_result.prompt_version,
-                )
-                db.session.add(inference)
-            else:
-                inference.risk_score = ai_result.risk_score
-                inference.summary = ai_result.summary
-                inference.model = ai_result.model
-                inference.prompt_version = ai_result.prompt_version
+            inference = InferenceResult(
+                article_id=article.id,
+                risk_score=ai_result.risk_score,
+                summary=ai_result.summary,
+                model=ai_result.model,
+                prompt_version=ai_result.prompt_version,
+            )
+            db.session.add(inference)
             ai_ran = True
 
     db.session.commit()

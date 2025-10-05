@@ -151,6 +151,19 @@ th {
     word-break: break-word;
 }
 
+th a {
+    color: inherit;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.sort-indicator {
+    font-size: 0.85rem;
+    color: #475569;
+}
+
 th:last-child,
 td:last-child {
     border-right: none;
@@ -301,6 +314,27 @@ td:last-child {
 
 .inference__summary p {
     margin: 0 0 12px;
+}
+
+.inference__history {
+    margin-top: 20px;
+}
+
+.inference__history table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid #e2e8f0;
+}
+
+.inference__history th,
+.inference__history td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #e2e8f0;
+    text-align: left;
+}
+
+.inference__history th {
+    background: #f8fafc;
 }
 
 .sr-only {

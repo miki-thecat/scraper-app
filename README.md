@@ -36,7 +36,7 @@ python ml/evaluate.py --valid ml/data/valid.csv
 
 ## API エンドポイント
 
-すべてのエンドポイントは Basic 認証（`.env` で設定）を通過する必要があります。
+すべてのエンドポイントは Basic 認証（`.env` で設定）または Bearer トークン (`API_ACCESS_TOKENS`) のいずれかで認証する必要があります。レート制限は `RATE_LIMIT_PER_MINUTE`（デフォルト 60 req/min）で制御できます。
 
 | メソッド | パス | 説明 |
 | --- | --- | --- |
@@ -47,9 +47,14 @@ python ml/evaluate.py --valid ml/data/valid.csv
 リクエスト例:
 
 ```bash
+# Basic 認証
 curl -u admin:password -X POST \
   -H "Content-Type: application/json" \
   -d '{"url": "https://news.yahoo.co.jp/articles/example", "force_ai": true}' \
+  http://localhost:5000/api/articles
+
+# Bearer トークン
+curl -H "Authorization: Bearer my-token" \
   http://localhost:5000/api/articles
 ```
 
