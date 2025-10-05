@@ -4,69 +4,69 @@
 
 {% block content %}
 <nav class="breadcrumbs">
-    <a href="{{ url_for('main.index') }}">&larr; 一覧へ戻る</a>
+    <a class="chip chip--ghost" href="{{ url_for('main.index') }}">&larr; 一覧へ戻る</a>
 </nav>
 
-<section class="detail">
-    <header class="detail__header">
+<section class="detail-card surface surface--wide">
+    <header class="detail-card__header">
+        <span class="detail-card__badge">記事詳細</span>
         <h2>{{ article.title }}</h2>
-        <p class="detail__meta">
-            <span class="detail__label">公開日時:</span>
-            <time datetime="{{ article.published_at.isoformat() if article.published_at else '' }}">
-                {{ article.published_at.strftime('%Y-%m-%d %H:%M') if article.published_at else '日時不明' }}
-            </time>
-        </p>
-        <p class="detail__meta"><span class="detail__label">URL:</span> <a href="{{ article.url }}" target="_blank" rel="noreferrer noopener">{{ article.url }}</a></p>
+        <div class="detail-card__meta">
+            <span>公開 <time datetime="{{ article.published_at.isoformat() if article.published_at else '' }}">{{ article.published_at.strftime('%Y-%m-%d %H:%M') if article.published_at else '日時不明' }}</time></span>
+            <span>登録 <time datetime="{{ article.created_at.isoformat() if article.created_at else '' }}">{{ article.created_at.strftime('%Y-%m-%d %H:%M') if article.created_at else '日時不明' }}</time></span>
+            <span>URL <a href="{{ article.url }}" target="_blank" rel="noreferrer noopener">{{ article.url }}</a></span>
+        </div>
     </header>
 
-    <article class="detail__body">
+    <article class="detail-card__body">
         {% for paragraph in article.body.split('\n\n') %}
         <p>{{ paragraph }}</p>
         {% endfor %}
     </article>
 </section>
 
-<section class="inference">
-    {% if config.get('ENABLE_AI', True) %}
-    <form class="inference__actions" method="post" action="{{ url_for('main.rerun_ai', article_id=article.id) }}">
-        <button type="submit">{% if inference %}AI推論を再実行{% else %}AI推論を実行{% endif %}</button>
-    </form>
-    {% endif %}
+<section class="inference-card surface surface--accent">
+    <div class="surface__header">
+        <div>
+            <h2>AIリスク評価</h2>
+            <p class="surface__description">要約とリスクスコアで記事の重要度を即時に把握します。</p>
+        </div>
+        {% if config.get('ENABLE_AI', True) %}
+        <form class="surface__actions" method="post" action="{{ url_for('main.rerun_ai', article_id=article.id) }}">
+            <button class="button button--primary" type="submit">{% if inference %}AI推論を再実行{% else %}AI推論を実行{% endif %}</button>
+        </form>
+        {% endif %}
+    </div>
+
     {% if inference %}
-    <h3>AIリスク評価</h3>
-    <div class="inference__score">リスクスコア: <strong>{{ inference.risk_score }}</strong></div>
-    <div class="inference__summary">
-        <h4>要約</h4>
+    <div class="inference-card__score" aria-label="リスクスコア">
+        <span class="score-badge score-badge--large">{{ inference.risk_score }}</span>
+    </div>
+    <div class="inference-card__summary">
+        <h3>要約</h3>
         {% for paragraph in inference.summary.split('\n') %}
         <p>{{ paragraph }}</p>
         {% endfor %}
     </div>
-    <p class="inference__meta">モデル: {{ inference.model }} / プロンプト: {{ inference.prompt_version }}</p>
+    <p class="inference-card__meta">モデル: {{ inference.model }} / プロンプト: {{ inference.prompt_version }}</p>
     {% if article.inferences|length > 1 %}
-    <div class="inference__history">
-        <h4>推論履歴</h4>
-        <table>
-            <thead>
-                <tr>
-                    <th>日時</th>
-                    <th>リスク</th>
-                    <th>モデル</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for record in article.inferences %}
-                <tr>
-                    <td>{{ record.created_at.strftime('%Y-%m-%d %H:%M') if record.created_at else '不明' }}</td>
-                    <td>{{ record.risk_score }}</td>
-                    <td>{{ record.model }} ({{ record.prompt_version }})</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    <div class="inference-card__history">
+        <h3>推論履歴</h3>
+        <ul>
+            {% for record in article.inferences %}
+            <li>
+                <span>{{ record.created_at.strftime('%Y-%m-%d %H:%M') if record.created_at else '不明' }}</span>
+                <span class="inference-card__history-score">{{ record.risk_score }}</span>
+                <span>{{ record.model }} ({{ record.prompt_version }})</span>
+            </li>
+            {% endfor %}
+        </ul>
     </div>
     {% endif %}
     {% else %}
-    <p>AI推論は未実行です。<a href="{{ url_for('main.result_ai', article_id=article.id) }}">AI推論ページへ</a></p>
+    <div class="inference-card__empty">
+        <p>AI推論はまだ実行されていません。上のボタンから推論を走らせましょう。</p>
+    </div>
     {% endif %}
 </section>
 {% endblock %}
