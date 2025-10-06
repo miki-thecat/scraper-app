@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <title>{% block title %}スクレイピングアプリケーション{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body class="app-body">
+    <div class="app-background">
+        <span class="app-background__glow app-background__glow--primary"></span>
+        <span class="app-background__glow app-background__glow--secondary"></span>
+        <span class="app-background__grid"></span>
+    </div>
+    <div class="app-shell">
+        <header class="hero">
+            <div class="hero__inner">
+                <div class="hero__badge">スクレイピング &times; AI</div>
+                <h1>スクレイピングアプリケーション</h1>
+                <p class="tagline">Yahoo!ニュースの記事を取得してAIでリスク評価。リスク情報をすばやく把握できます。</p>
+            </div>
+        </header>
+        <main class="container">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="flash" role="status">
+                {% for category, message in messages %}
+                <p class="flash__message flash__message--{{ category }}">{{ message }}</p>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endwith %}
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</body>
+</html>
