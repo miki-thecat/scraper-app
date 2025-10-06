@@ -11,7 +11,8 @@ from app.services import news_feed
 
 def test_index_requires_auth(client):
     resp = client.get("/")
-    assert resp.status_code == 401
+    assert resp.status_code == 302
+    assert resp.headers["Location"].startswith("/login")
 
 
 def test_index_with_auth_lists_articles(app, client, auth_header):

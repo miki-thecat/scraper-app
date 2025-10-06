@@ -7,6 +7,7 @@ from flask import Flask, jsonify, request
 
 from .config import Config
 from .models.db import db, init_db
+from .auth import session_manager
 
 
 def create_app(config_class: type[Config] | None = None) -> Flask:
@@ -20,8 +21,10 @@ def create_app(config_class: type[Config] | None = None) -> Flask:
     db.init_app(app)
     init_db(app)
 
+    from .auth.routes import auth_bp
     from .routes import api_bp, bp as main_bp
 
+    app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp)
 
@@ -31,6 +34,13 @@ def create_app(config_class: type[Config] | None = None) -> Flask:
     register_cli_commands(app)
 
     _init_rate_limiter(app)
+
+    @app.context_processor
+    def _inject_auth_state() -> dict[str, object]:
+        return {
+            "is_authenticated": session_manager.is_authenticated(),
+            "auth_username": session_manager.current_username(),
+        }
 
     return app
 

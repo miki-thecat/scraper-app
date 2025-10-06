@@ -24,6 +24,7 @@ from flask import (
     url_for,
 )
 
+from .auth import session_manager
 from .models.article import Article, InferenceResult
 from .models.db import db
 from .services import ai as ai_service
@@ -61,13 +62,24 @@ def _check_auth(header: str | None) -> bool:
 def requires_basic_auth(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
-        if not _check_auth(request.headers.get("Authorization")):
-            api_key = request.headers.get("X-API-Key")
-            if api_key and api_key.strip() in _allowed_tokens():
-                return view(*args, **kwargs)
+        if session_manager.is_authenticated():
+            return view(*args, **kwargs)
+
+        if _check_auth(request.headers.get("Authorization")):
+            return view(*args, **kwargs)
+
+        api_key = request.headers.get("X-API-Key")
+        if api_key and api_key.strip() in _allowed_tokens():
+            return view(*args, **kwargs)
+
+        if request.blueprint == "api":
             resp = Response("Unauthorized", status=401)
             resp.headers["WWW-Authenticate"] = 'Basic realm="Restricted"'
             return resp
+
+        flash("ログインしてください。", "error")
+        login_url = url_for("auth.login", next=request.url)
+        return redirect(login_url)
         return view(*args, **kwargs)
 
     return wrapped

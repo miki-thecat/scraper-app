@@ -1,0 +1,46 @@
+{% extends 'layout.html' %}
+
+{% block title %}ログイン - スクレイピングアプリケーション{% endblock %}
+
+{% block hero %}
+<div class="hero__inner hero__inner--compact">
+    <div class="hero__badge">Secure Access</div>
+    <h1>ダッシュボードにログイン</h1>
+    <p class="tagline">スクレイピングとAI評価のハブへアクセスするには認証が必要です。</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<section class="auth-section">
+    <div class="auth-card">
+        <div class="auth-card__header">
+            <h2>アカウント認証</h2>
+            <p>設定済みのユーザー名とパスワードでログインしてください。</p>
+        </div>
+        <form method="post" action="{{ url_for('auth.login_post') }}" class="auth-form">
+            {% if next_url %}
+            <input type="hidden" name="next" value="{{ next_url }}">
+            {% endif %}
+            <div class="auth-form__field">
+                <label for="username">ユーザー名</label>
+                <input id="username" name="username" type="text" autocomplete="username" required placeholder="admin">
+            </div>
+            <div class="auth-form__field">
+                <label for="password">パスワード</label>
+                <div class="auth-form__password">
+                    <input id="password" name="password" type="password" autocomplete="current-password" required placeholder="••••••••">
+                </div>
+            </div>
+            <div class="auth-form__actions">
+                <button class="button button--primary button--full" type="submit">ログイン</button>
+            </div>
+        </form>
+        <div class="auth-card__tips">
+            <p>
+                <strong>ヒント:</strong> 環境変数 <code>BASIC_AUTH_USERNAME</code> / <code>BASIC_AUTH_PASSWORD</code> を変更すると認証情報を更新できます。
+            </p>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
