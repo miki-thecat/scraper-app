@@ -178,6 +178,12 @@ docker-compose up --build
 - マルチユーザー対応と権限管理
 - Docker Compose + Terraform を使った IaC 化
 
+## 学習用リソース
+
+- `docs/study/guide.md`: コードベース全体を読み解くためのガイド。
+- `docs/study/handson.md`: ワークショップ形式の演習課題集。
+- `docs/study/` 配下に自分の学習メモやジャーナルを追加してもOKです。
+
 ## ライセンス
 
 MIT License
