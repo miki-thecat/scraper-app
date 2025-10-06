@@ -35,6 +35,17 @@ class Config:
     )
     RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))
 
+    # Feed settings
+    NEWS_FEED_URLS = tuple(
+        token.strip()
+        for token in os.getenv(
+            "NEWS_FEED_URLS",
+            "https://news.yahoo.co.jp/rss/topics/top-picks.xml,https://news.yahoo.co.jp/rss/topics/domestic.xml",
+        ).split(",")
+        if token.strip()
+    )
+    NEWS_FEED_TIMEOUT = int(os.getenv("NEWS_FEED_TIMEOUT", "5"))
+
     # OpenAI / AI settings
     OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     OPENAI_TIMEOUT = int(os.getenv("OPENAI_TIMEOUT", "30"))
@@ -55,6 +66,7 @@ class TestConfig(Config):
     ENABLE_AI = False
     API_ACCESS_TOKENS = ("test-token",)
     RATE_LIMIT_PER_MINUTE = 1000
+    NEWS_FEED_URLS: tuple[str, ...] = ()
 
 
 class DevConfig(Config):

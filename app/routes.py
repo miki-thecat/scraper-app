@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import base64
+import csv
+import io
 from functools import wraps
 from datetime import datetime
 from typing import Any
 
-from dateutil import parser as dateparser
+from dateutil import parser as dateparser, tz
 from sqlalchemy import or_, select
+from sqlalchemy.orm import aliased
 
 from flask import (
     Blueprint,
@@ -24,7 +27,7 @@ from flask import (
 from .models.article import Article, InferenceResult
 from .models.db import db
 from .services import ai as ai_service
-from .services import parsing, scraping
+from .services import analytics, news_feed, parsing, risk, scraping
 
 bp = Blueprint("main", __name__)
 api_bp = Blueprint("api", __name__, url_prefix="/api")
@@ -60,7 +63,7 @@ def requires_basic_auth(view):
     def wrapped(*args, **kwargs):
         if not _check_auth(request.headers.get("Authorization")):
             api_key = request.headers.get("X-API-Key")
-            if api_key and api_key in _allowed_tokens():
+            if api_key and api_key.strip() in _allowed_tokens():
                 return view(*args, **kwargs)
             resp = Response("Unauthorized", status=401)
             resp.headers["WWW-Authenticate"] = 'Basic realm="Restricted"'
@@ -85,6 +88,7 @@ def _article_select(
     end_date: datetime | None,
     sort_key: str = "published_at",
     order: str = "desc",
+    risk_band: risk.RiskBand | None = None,
 ):
     stmt = select(Article)
 
@@ -102,6 +106,20 @@ def _article_select(
     if end_date is not None:
         stmt = stmt.where(Article.published_at <= end_date)
 
+    if risk_band is not None:
+        latest = aliased(InferenceResult)
+        latest_subquery = (
+            select(InferenceResult.id)
+            .where(InferenceResult.article_id == Article.id)
+            .order_by(InferenceResult.created_at.desc(), InferenceResult.id.desc())
+            .limit(1)
+            .scalar_subquery()
+        )
+        stmt = stmt.join(latest, latest.id == latest_subquery)
+        stmt = stmt.where(latest.risk_score >= risk_band.min_score)
+        if risk_band.max_score is not None:
+            stmt = stmt.where(latest.risk_score <= risk_band.max_score)
+
     sort_columns = {
         "published_at": Article.published_at,
         "created_at": Article.created_at,
@@ -118,6 +136,7 @@ def _article_to_dict(article: Article) -> dict[str, Any]:
         {
             "id": record.id,
             "risk_score": record.risk_score,
+            "risk_level": _risk_level_payload(record.risk_score),
             "summary": record.summary,
             "model": record.model,
             "prompt_version": record.prompt_version,
@@ -134,6 +153,21 @@ def _article_to_dict(article: Article) -> dict[str, Any]:
         "created_at": article.created_at.isoformat() if article.created_at else None,
         "inference": history[0] if history else None,
         "inference_history": history,
+        "risk_level": _risk_level_payload(article.latest_inference.risk_score) if article.latest_inference else None,
+    }
+
+
+def _risk_level_payload(score: int | None) -> dict[str, Any] | None:
+    level = risk.classify(score)
+    if level is None:
+        return None
+    return {
+        "slug": level.slug,
+        "name": level.name,
+        "badge": level.badge,
+        "description": level.description,
+        "min_score": level.min_score,
+        "max_score": level.max_score,
     }
 
 
@@ -151,6 +185,7 @@ def index():
     end_date_raw = request.args.get("end")
     sort_key = request.args.get("sort", "published_at")
     order = request.args.get("order", "desc")
+    risk_param = request.args.get("risk", "").strip().lower()
 
     if sort_key not in {"published_at", "created_at", "title"}:
         sort_key = "published_at"
@@ -160,9 +195,14 @@ def index():
     start_date = _parse_date(start_date_raw)
     end_date = _parse_date(end_date_raw)
 
-    stmt = _article_select(search_query, start_date, end_date, sort_key, order)
+    risk_band = risk.level_by_slug(risk_param)
+
+    stmt = _article_select(search_query, start_date, end_date, sort_key, order, risk_band)
 
     pagination = db.paginate(stmt, page=page, per_page=20, error_out=False)
+
+    metrics = analytics.gather_metrics(db.session)
+    latest_articles = _latest_articles_for_view(limit=6)
 
     return render_template(
         "index.html",
@@ -174,6 +214,71 @@ def index():
             "end": end_date_raw or "",
             "sort": sort_key,
             "order": order,
+            "risk": risk_param,
+        },
+        metrics=metrics,
+        latest_articles=latest_articles,
+        risk_classify=risk.classify,
+        risk_levels=risk.levels(),
+    )
+
+
+@bp.get("/export.csv")
+@requires_basic_auth
+def export_csv():
+    search_query = request.args.get("q", "").strip()
+    start_date_raw = request.args.get("start")
+    end_date_raw = request.args.get("end")
+    sort_key = request.args.get("sort", "published_at")
+    order = request.args.get("order", "desc")
+    risk_param = request.args.get("risk", "").strip().lower()
+
+    start_date = _parse_date(start_date_raw)
+    end_date = _parse_date(end_date_raw)
+
+    risk_band = risk.level_by_slug(risk_param)
+
+    stmt = _article_select(search_query, start_date, end_date, sort_key, order, risk_band)
+    articles = db.session.scalars(stmt).all()
+
+    buffer = io.StringIO()
+    fieldnames = [
+        "title",
+        "url",
+        "published_at",
+        "created_at",
+        "risk_score",
+        "risk_level",
+        "risk_label",
+        "summary",
+    ]
+    writer = csv.DictWriter(buffer, fieldnames=fieldnames)
+    writer.writeheader()
+
+    for article in articles:
+        payload = _article_to_dict(article)
+        inference = payload.get("inference") or {}
+        level = inference.get("risk_level") or payload.get("risk_level")
+        writer.writerow(
+            {
+                "title": payload["title"],
+                "url": payload["url"],
+                "published_at": payload["published_at"],
+                "created_at": payload["created_at"],
+                "risk_score": inference.get("risk_score"),
+                "risk_level": (level or {}).get("name") if level else "",
+                "risk_label": (level or {}).get("badge") if level else "",
+                "summary": inference.get("summary", ""),
+            }
+        )
+
+    buffer.seek(0)
+    filename = "scraper-report.csv"
+    return Response(
+        buffer.getvalue(),
+        headers={
+            "Content-Type": "text/csv; charset=utf-8",
+            "Content-Disposition": f"attachment; filename={filename}",
         },
     )
 
@@ -312,12 +417,15 @@ def api_list_articles():
     end_date = _parse_date(request.args.get("end"))
     sort_key = request.args.get("sort", "published_at")
     order = request.args.get("order", "desc")
+    risk_param = request.args.get("risk", "").strip().lower()
     if sort_key not in {"published_at", "created_at", "title"}:
         sort_key = "published_at"
     if order not in {"asc", "desc"}:
         order = "desc"
 
-    stmt = _article_select(search_query, start_date, end_date, sort_key, order)
+    risk_band = risk.level_by_slug(risk_param)
+
+    stmt = _article_select(search_query, start_date, end_date, sort_key, order, risk_band)
     pagination = db.paginate(stmt, page=page, per_page=per_page, error_out=False)
 
     return jsonify(
@@ -424,6 +532,65 @@ def api_create_article():
     }
 
     return jsonify(response_body), 201 if status == "created" else 200
+
+
+@api_bp.get("/reports/summary")
+@requires_basic_auth
+def api_report_summary():
+    metrics = analytics.gather_metrics(db.session)
+    highest = None
+    if metrics.highest_risk_article_id:
+        highest = {
+            "article_id": metrics.highest_risk_article_id,
+            "title": metrics.highest_risk_title,
+            "risk_score": metrics.highest_risk_score,
+        }
+
+    return jsonify(
+        {
+            "total_articles": metrics.total_articles,
+            "ai_coverage_ratio": metrics.ai_coverage_ratio,
+            "average_risk_score": metrics.average_risk_score,
+            "high_risk_articles": metrics.high_risk_articles,
+            "highest_risk": highest,
+            "risk_distribution": {
+                band.slug: metrics.risk_distribution.get(band.slug, 0)
+                for band in risk.levels()
+            },
+        }
+    )
+
+
+_TOKYO_TZ = tz.gettz("Asia/Tokyo")
+
+
+def _latest_articles_for_view(limit: int) -> list[dict[str, Any]]:
+    items = news_feed.fetch_latest_articles(limit=limit)
+    latest: list[dict[str, Any]] = []
+    for item in items:
+        published_display = None
+        published_iso = None
+        if item.published_at:
+            try:
+                local_dt = item.published_at.astimezone(_TOKYO_TZ)
+            except (ValueError, AttributeError):
+                local_dt = None
+            if local_dt:
+                published_display = local_dt.strftime("%Y-%m-%d %H:%M")
+                published_iso = local_dt.isoformat()
+
+        latest.append(
+            {
+                "title": item.title,
+                "url": item.url,
+                "source": item.source,
+                "published_display": published_display,
+                "published_iso": published_iso,
+            }
+        )
+    return latest
+
+
 @bp.get("/healthz")
 def healthz():
     return jsonify({"status": "ok"})

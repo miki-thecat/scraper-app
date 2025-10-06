@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.article import Article, InferenceResult
 from app.services import parsing
 from app.models.db import db
 from app.services.scraping import ScrapeError
+from app.services import news_feed
 
 
 def test_index_requires_auth(client):
@@ -31,6 +32,96 @@ def test_index_with_auth_lists_articles(app, client, auth_header):
     assert "一覧表示用" in resp.get_data(as_text=True)
     assert str(article_id) in resp.get_data(as_text=True)
     assert "タイトル・本文を検索" in resp.get_data(as_text=True)
+
+
+def test_index_renders_latest_feed(app, client, auth_header, mocker):
+    feed_items = [
+        news_feed.NewsFeedItem(
+            title="最新記事",
+            url="https://news.yahoo.co.jp/articles/latest",
+            published_at=datetime.now(timezone.utc),
+            source="Yahoo!ニュース - テック",
+        )
+    ]
+
+    mocker.patch("app.routes.news_feed.fetch_latest_articles", return_value=feed_items)
+
+    resp = client.get("/", headers=auth_header)
+    text = resp.get_data(as_text=True)
+    assert "最新のYahoo!ニュースから選ぶ" in text
+    assert "最新記事" in text
+    assert "AI解析する" in text
+
+
+def test_export_csv_returns_articles(app, client, auth_header):
+    with app.app_context():
+        article = Article(
+            url="https://news.yahoo.co.jp/articles/export",
+            title="エクスポート対象",
+            published_at=datetime.now(timezone.utc),
+            body="本文",
+        )
+        db.session.add(article)
+        db.session.flush()
+        inference = InferenceResult(
+            article_id=article.id,
+            risk_score=82,
+            summary="summary",
+            model="gpt",
+            prompt_version="v1",
+        )
+        db.session.add(inference)
+        db.session.commit()
+
+    resp = client.get("/export.csv", headers=auth_header)
+    assert resp.status_code == 200
+    assert resp.headers["Content-Type"].startswith("text/csv")
+    body = resp.get_data(as_text=True)
+    assert "エクスポート対象" in body
+    assert "82" in body
+
+
+def test_index_risk_filter(app, client, auth_header):
+    with app.app_context():
+        high_article = Article(
+            url="https://news.yahoo.co.jp/articles/high",
+            title="高リスク記事",
+            published_at=datetime.now(timezone.utc),
+            body="本文",
+        )
+        low_article = Article(
+            url="https://news.yahoo.co.jp/articles/low",
+            title="低リスク記事",
+            published_at=datetime.now(timezone.utc),
+            body="本文",
+        )
+        db.session.add_all([high_article, low_article])
+        db.session.flush()
+
+        db.session.add_all(
+            [
+                InferenceResult(
+                    article_id=high_article.id,
+                    risk_score=90,
+                    summary="high",
+                    model="gpt",
+                    prompt_version="v1",
+                ),
+                InferenceResult(
+                    article_id=low_article.id,
+                    risk_score=20,
+                    summary="low",
+                    model="gpt",
+                    prompt_version="v1",
+                ),
+            ]
+        )
+        db.session.commit()
+
+    resp = client.get("/?risk=high", headers=auth_header)
+    text = resp.get_data(as_text=True)
+    assert "高リスク記事" in text
+    assert "低リスク記事" not in text
 
 
 def test_index_search_filters_results(app, client, auth_header):

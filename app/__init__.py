@@ -42,9 +42,18 @@ _RATE_BUCKETS: DefaultDict[tuple[str, str], deque[float]] = defaultdict(deque)
 
 
 def _rate_limit_key() -> tuple[str, str]:
-    ip = request.headers.get("X-Forwarded-For", request.remote_addr or "")
-    auth = request.headers.get("Authorization", "") or request.headers.get("X-API-Key", "")
-    return ip, auth
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    if forwarded:
+        ip = forwarded.split(",", 1)[0].strip()
+    else:
+        ip = request.remote_addr or ""
+    auth_header = request.headers.get("Authorization")
+    if auth_header:
+        credential = auth_header.strip()
+    else:
+        api_key = request.headers.get("X-API-Key", "").strip()
+        credential = f"api:{api_key}" if api_key else ""
+    return ip, credential
 
 
 def _init_rate_limiter(app: Flask) -> None:

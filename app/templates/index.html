@@ -26,13 +26,101 @@
     </form>
 </section>
 
+<section class="surface surface--accent">
+    <div class="surface__header">
+        <div>
+            <h2>リスク監視ダッシュボード</h2>
+            <p class="surface__description">蓄積した記事からAIカバレッジやリスク傾向をリアルタイムで把握できます。</p>
+        </div>
+        <span class="surface__hint">INSIGHT</span>
+    </div>
+    <div class="insight-grid">
+        <div class="insight-card">
+            <span class="insight-card__label">登録済み記事</span>
+            <strong class="insight-card__value">{{ metrics.total_articles }}</strong>
+            <span class="insight-card__sub">AI解析率 {{ (metrics.ai_coverage_ratio * 100)|round(1) }}%</span>
+        </div>
+        <div class="insight-card">
+            <span class="insight-card__label">平均リスクスコア</span>
+            <strong class="insight-card__value">{{ metrics.average_risk_score }}</strong>
+            <span class="insight-card__sub">高リスク検知 {{ metrics.high_risk_articles }} 件</span>
+        </div>
+        <div class="insight-card insight-card--highlight">
+            <span class="insight-card__label">直近の高リスク</span>
+            {% if metrics.highest_risk_title %}
+            <strong class="insight-card__value">{{ metrics.highest_risk_score }}</strong>
+            <span class="insight-card__sub">
+                <a href="{{ url_for('main.result', article_id=metrics.highest_risk_article_id) }}">
+                    {{ metrics.highest_risk_title }}
+                </a>
+            </span>
+            {% else %}
+            <strong class="insight-card__value">--</strong>
+            <span class="insight-card__sub">AI推論がまだありません</span>
+            {% endif %}
+        </div>
+        <div class="insight-card insight-card--distribution">
+            <span class="insight-card__label">リスク分布</span>
+            <ul class="insight-distribution">
+                {% for band in risk_levels %}
+                {% set count = metrics.risk_distribution.get(band.slug, 0) %}
+                <li class="insight-distribution__item" aria-label="{{ band.badge }}">
+                    <span class="insight-distribution__badge">{{ band.badge }}</span>
+                    <span class="insight-distribution__count">{{ count }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</section>
+
+<section class="surface surface--latest">
+    <div class="surface__header">
+        <div>
+            <h2>最新のYahoo!ニュースから選ぶ</h2>
+            <p class="surface__description">公式RSSを自動取得。ワンクリックでスクレイプとAI評価を実行できます。</p>
+        </div>
+        <span class="surface__hint">STEP 2</span>
+    </div>
+
+    {% if latest_articles %}
+    <div class="latest-feed">
+        {% for item in latest_articles %}
+        <article class="latest-feed__item">
+            <div class="latest-feed__meta">
+                <h3 class="latest-feed__title">{{ item.title }}</h3>
+                <div class="latest-feed__info">
+                    <span class="latest-feed__source">{{ item.source }}</span>
+                    {% if item.published_display %}
+                    <time datetime="{{ item.published_iso }}">{{ item.published_display }}</time>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="latest-feed__actions">
+                <a class="chip chip--ghost" href="{{ item.url }}" target="_blank" rel="noopener noreferrer">元記事</a>
+                <form method="post" action="{{ url_for('main.scrape') }}">
+                    <input type="hidden" name="url" value="{{ item.url }}">
+                    <button class="button button--primary" type="submit">AI解析する</button>
+                </form>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state empty-state--inline">
+        <h3>最新記事を取得できませんでした</h3>
+        <p>ネットワークに問題があるか、Yahoo!ニュースRSSが一時停止しています。</p>
+    </div>
+    {% endif %}
+</section>
+
 <section class="surface">
     <div class="surface__header">
         <div>
             <h2>検索 &amp; フィルタ</h2>
             <p class="surface__description">AI結果や本文からキーワード検索。期間や並び替えもここから調整できます。</p>
         </div>
-        <span class="surface__hint">STEP 2</span>
+        <span class="surface__hint">STEP 3</span>
     </div>
     <form class="search-form" method="get" action="{{ url_for('main.index') }}">
         <div class="search-form__field">
@@ -46,6 +134,19 @@
         <div class="search-form__field">
             <label for="end">終了日</label>
             <input id="end" name="end" type="date" value="{{ filters.end }}">
+        </div>
+        <div class="search-form__field search-form__field--select">
+            <label for="risk">リスクレベル</label>
+            <div class="select">
+                <select id="risk" name="risk">
+                    <option value="">すべて</option>
+                    {% for band in risk_levels %}
+                    <option value="{{ band.slug }}" {% if filters.risk == band.slug %}selected{% endif %}>
+                        {{ band.badge }} ({{ band.name }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
         </div>
         <div class="search-form__field search-form__field--select">
             <label for="sort">ソート</label>
@@ -90,6 +191,7 @@
                     公開日時 {% if filters.order == 'asc' %}▲{% else %}▼{% endif %}
                 {% endif %}
             </div>
+            <a class="button button--ghost article-board__export" href="{{ url_for('main.export_csv', q=filters.q or None, start=filters.start or None, end=filters.end or None, sort=filters.sort, order=filters.order, risk=filters.risk or None) }}">CSV書き出し</a>
         </div>
     </div>
 
@@ -97,6 +199,7 @@
     <div class="article-grid">
         {% for article in articles %}
         {% set inference = article.latest_inference %}
+        {% set level = risk_classify(inference.risk_score) if inference else None %}
         {% set paragraphs = article.body.split('\n\n') %}
         <article class="article-card" aria-label="{{ article.title }}">
             <header class="article-card__header">
@@ -110,6 +213,9 @@
                 <div class="article-card__score">
                     {% if inference %}
                     <span class="score-badge" aria-label="リスクスコア {{ inference.risk_score }}">{{ inference.risk_score }}</span>
+                    {% if level %}
+                    <span class="risk-chip" title="{{ level.description }}">{{ level.badge }}</span>
+                    {% endif %}
                     {% else %}
                     <span class="score-badge score-badge--empty">AI未実行</span>
                     {% endif %}
@@ -157,9 +263,9 @@
     <nav class="pagination" aria-label="ページネーション">
         {% set prev_page = pagination.page - 1 %}
         {% set next_page = pagination.page + 1 %}
-        <a class="pagination__link{% if not pagination.has_prev %} is-disabled{% endif %}" href="{{ url_for('main.index', page=prev_page, q=filters.q or None, start=filters.start or None, end=filters.end or None, sort=filters.sort, order=filters.order) if pagination.has_prev else '#' }}">&larr; 前へ</a>
+        <a class="pagination__link{% if not pagination.has_prev %} is-disabled{% endif %}" href="{{ url_for('main.index', page=prev_page, q=filters.q or None, start=filters.start or None, end=filters.end or None, sort=filters.sort, order=filters.order, risk=filters.risk or None) if pagination.has_prev else '#' }}">&larr; 前へ</a>
         <span class="pagination__info">{{ pagination.page }} / {{ pagination.pages or 1 }}</span>
-        <a class="pagination__link{% if not pagination.has_next %} is-disabled{% endif %}" href="{{ url_for('main.index', page=next_page, q=filters.q or None, start=filters.start or None, end=filters.end or None, sort=filters.sort, order=filters.order) if pagination.has_next else '#' }}">次へ &rarr;</a>
+        <a class="pagination__link{% if not pagination.has_next %} is-disabled{% endif %}" href="{{ url_for('main.index', page=next_page, q=filters.q or None, start=filters.start or None, end=filters.end or None, sort=filters.sort, order=filters.order, risk=filters.risk or None) if pagination.has_next else '#' }}">次へ &rarr;</a>
     </nav>
 </section>
 {% endblock %}

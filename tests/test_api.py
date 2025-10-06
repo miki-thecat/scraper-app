@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from app.models.article import Article
+from app.models.article import Article, InferenceResult
 from app.models.db import db
 from app.services import parsing
 
@@ -17,6 +17,14 @@ def test_api_accepts_bearer_token(app, client):
         app.config["API_ACCESS_TOKENS"] = ("test-token",)
 
     resp = client.get("/api/articles", headers={"Authorization": "Bearer test-token"})
+    assert resp.status_code == 200
+
+
+def test_api_accepts_x_api_key(app, client):
+    with app.app_context():
+        app.config["API_ACCESS_TOKENS"] = ("token-x",)
+
+    resp = client.get("/api/articles", headers={"X-API-Key": "token-x"})
     assert resp.status_code == 200
 
 
@@ -119,3 +127,125 @@ def test_api_rate_limit(app, client, auth_header):
     _RATE_BUCKETS.clear()
     with app.app_context():
         app.config["RATE_LIMIT_PER_MINUTE"] = 1000
+
+
+def test_api_rate_limit_uses_first_forwarded_ip(app, client, auth_header):
+    from app import _RATE_BUCKETS
+
+    with app.app_context():
+        app.config["RATE_LIMIT_PER_MINUTE"] = 1
+
+    _RATE_BUCKETS.clear()
+
+    headers_primary = dict(auth_header)
+    headers_primary["X-Forwarded-For"] = "1.2.3.4, 5.6.7.8"
+
+    resp1 = client.get("/api/articles", headers=headers_primary)
+    assert resp1.status_code == 200
+
+    headers_variant = dict(auth_header)
+    headers_variant["X-Forwarded-For"] = "1.2.3.4 ,5.6.7.8"
+
+    resp2 = client.get("/api/articles", headers=headers_variant)
+    assert resp2.status_code == 429
+
+    _RATE_BUCKETS.clear()
+
+    with app.app_context():
+        app.config["RATE_LIMIT_PER_MINUTE"] = 1000
+
+
+def test_api_rate_limit_normalizes_api_key(app, client):
+    from app import _RATE_BUCKETS
+
+    with app.app_context():
+        app.config.update(
+            RATE_LIMIT_PER_MINUTE=1,
+            API_ACCESS_TOKENS=("token-x",),
+        )
+
+    _RATE_BUCKETS.clear()
+
+    resp1 = client.get("/api/articles", headers={"X-API-Key": " token-x "})
+    assert resp1.status_code == 200
+
+    resp2 = client.get("/api/articles", headers={"X-API-Key": "token-x"})
+    assert resp2.status_code == 429
+
+    _RATE_BUCKETS.clear()
+
+    with app.app_context():
+        app.config["RATE_LIMIT_PER_MINUTE"] = 1000
+
+
+def test_api_list_filters_by_risk(app, client, auth_header):
+    with app.app_context():
+        high = Article(
+            url="https://news.yahoo.co.jp/articles/high-risk",
+            title="高リスクAPI",
+            published_at=datetime.utcnow(),
+            body="本文",
+        )
+        low = Article(
+            url="https://news.yahoo.co.jp/articles/low-risk",
+            title="低リスクAPI",
+            published_at=datetime.utcnow(),
+            body="本文",
+        )
+        db.session.add_all([high, low])
+        db.session.flush()
+        db.session.add_all(
+            [
+                InferenceResult(
+                    article_id=high.id,
+                    risk_score=88,
+                    summary="高",
+                    model="gpt",
+                    prompt_version="v1",
+                ),
+                InferenceResult(
+                    article_id=low.id,
+                    risk_score=25,
+                    summary="低",
+                    model="gpt",
+                    prompt_version="v1",
+                ),
+            ]
+        )
+        db.session.commit()
+
+    resp = client.get("/api/articles?risk=high", headers=auth_header)
+    data = resp.get_json()
+
+    assert resp.status_code == 200
+    assert data["total"] == 1
+    assert data["items"][0]["title"] == "高リスクAPI"
+
+
+def test_api_report_summary(app, client, auth_header):
+    with app.app_context():
+        article = Article(
+            url="https://news.yahoo.co.jp/articles/summary",
+            title="レポート記事",
+            published_at=datetime.utcnow(),
+            body="本文",
+        )
+        db.session.add(article)
+        db.session.flush()
+        inference = InferenceResult(
+            article_id=article.id,
+            risk_score=90,
+            summary="summary",
+            model="gpt",
+            prompt_version="v1",
+        )
+        db.session.add(inference)
+        db.session.commit()
+
+    resp = client.get("/api/reports/summary", headers=auth_header)
+    data = resp.get_json()
+
+    assert resp.status_code == 200
+    assert data["total_articles"] == 1
+    assert data["highest_risk"]["risk_score"] == 90
+    assert data["risk_distribution"]["high"] == 1
