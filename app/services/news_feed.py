@@ -45,6 +45,13 @@ def _feed_urls() -> Iterable[str]:
         (
             "https://news.yahoo.co.jp/rss/topics/top-picks.xml",
             "https://news.yahoo.co.jp/rss/topics/domestic.xml",
+            "https://news.yahoo.co.jp/rss/topics/world.xml",
+            "https://news.yahoo.co.jp/rss/topics/business.xml",
+            "https://news.yahoo.co.jp/rss/topics/entertainment.xml",
+            "https://news.yahoo.co.jp/rss/topics/sports.xml",
+            "https://news.yahoo.co.jp/rss/topics/it.xml",
+            "https://news.yahoo.co.jp/rss/topics/science.xml",
+            "https://news.yahoo.co.jp/rss/topics/local.xml",
         ),
     )
     for url in cfg_urls:

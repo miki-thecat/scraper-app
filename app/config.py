@@ -40,7 +40,15 @@ class Config:
         token.strip()
         for token in os.getenv(
             "NEWS_FEED_URLS",
-            "https://news.yahoo.co.jp/rss/topics/top-picks.xml,https://news.yahoo.co.jp/rss/topics/domestic.xml",
+            "https://news.yahoo.co.jp/rss/topics/top-picks.xml,"
+            "https://news.yahoo.co.jp/rss/topics/domestic.xml,"
+            "https://news.yahoo.co.jp/rss/topics/world.xml,"
+            "https://news.yahoo.co.jp/rss/topics/business.xml,"
+            "https://news.yahoo.co.jp/rss/topics/entertainment.xml,"
+            "https://news.yahoo.co.jp/rss/topics/sports.xml,"
+            "https://news.yahoo.co.jp/rss/topics/it.xml,"
+            "https://news.yahoo.co.jp/rss/topics/science.xml,"
+            "https://news.yahoo.co.jp/rss/topics/local.xml",
         ).split(",")
         if token.strip()
     )
