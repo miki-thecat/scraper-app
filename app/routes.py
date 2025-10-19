@@ -636,8 +636,8 @@ def latest_feed():
     search_query = request.args.get("q", "").strip()
     per_page = 20
     
-    # Fetch more articles to handle filtering
-    all_items = news_feed.fetch_latest_articles(limit=200)
+    # Fetch more articles to handle filtering (increased limit for more sources)
+    all_items = news_feed.fetch_latest_articles(limit=500)
     
     # Filter by search query
     filtered_items = []

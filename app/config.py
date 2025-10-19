@@ -40,6 +40,7 @@ class Config:
         token.strip()
         for token in os.getenv(
             "NEWS_FEED_URLS",
+            # 主要カテゴリ（9種類 × 8件 = 72件）
             "https://news.yahoo.co.jp/rss/topics/top-picks.xml,"
             "https://news.yahoo.co.jp/rss/topics/domestic.xml,"
             "https://news.yahoo.co.jp/rss/topics/world.xml,"
@@ -48,7 +49,20 @@ class Config:
             "https://news.yahoo.co.jp/rss/topics/sports.xml,"
             "https://news.yahoo.co.jp/rss/topics/it.xml,"
             "https://news.yahoo.co.jp/rss/topics/science.xml,"
-            "https://news.yahoo.co.jp/rss/topics/local.xml",
+            "https://news.yahoo.co.jp/rss/topics/local.xml,"
+            # メディア別フィード（約590件）
+            "https://news.yahoo.co.jp/rss/media/jprime/all.xml,"
+            "https://news.yahoo.co.jp/rss/media/nksports/all.xml,"
+            "https://news.yahoo.co.jp/rss/media/natalien/all.xml,"
+            "https://news.yahoo.co.jp/rss/media/natalieo/all.xml,"
+            "https://news.yahoo.co.jp/rss/media/tospoweb/all.xml,"
+            "https://news.yahoo.co.jp/rss/media/baseballk/all.xml,"
+            "https://news.yahoo.co.jp/rss/media/soccerk/all.xml,"
+            "https://news.yahoo.co.jp/rss/media/bfj/all.xml,"
+            "https://news.yahoo.co.jp/rss/media/bengocom/all.xml,"
+            "https://news.yahoo.co.jp/rss/media/zdn_mkt/all.xml,"
+            "https://news.yahoo.co.jp/rss/media/bcn/all.xml,"
+            "https://news.yahoo.co.jp/rss/media/impress/all.xml",
         ).split(",")
         if token.strip()
     )
