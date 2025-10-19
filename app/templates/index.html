@@ -106,6 +106,9 @@
         </article>
         {% endfor %}
     </div>
+    <div class="surface__footer" style="margin-top: 1.5rem; text-align: center;">
+        <a class="button button--secondary" href="{{ url_for('main.latest_feed') }}">もっと見る（検索＆ページ機能付き）→</a>
+    </div>
     {% else %}
     <div class="empty-state empty-state--inline">
         <h3>最新記事を取得できませんでした</h3>

@@ -1,0 +1,81 @@
+{% extends 'layout.html' %}
+
+{% block title %}最新Yahoo!ニュース - スクレイピングアプリケーション{% endblock %}
+
+{% block content %}
+<section class="surface surface--primary">
+    <div class="surface__header">
+        <div>
+            <h2>最新のYahoo!ニュースから選ぶ</h2>
+            <p class="surface__description">公式RSSから最新{{ pagination.total }}件を取得。キーワード検索とページ機能で目的の記事を見つけやすくなりました。</p>
+        </div>
+        <span class="surface__hint">RSS FEED</span>
+    </div>
+
+    <form class="search-form search-form--simple" method="get" action="{{ url_for('main.latest_feed') }}">
+        <div class="search-form__field">
+            <label for="q" class="sr-only">キーワード検索</label>
+            <input id="q" name="q" type="search" value="{{ search_query }}" placeholder="タイトルやソースで検索...">
+        </div>
+        <div class="search-form__actions">
+            <button class="button button--primary" type="submit">検索</button>
+            {% if search_query %}
+            <a class="button button--ghost" href="{{ url_for('main.latest_feed') }}">クリア</a>
+            {% endif %}
+        </div>
+    </form>
+
+    {% if articles %}
+    <div class="latest-feed">
+        {% for item in articles %}
+        <article class="latest-feed__item">
+            <div class="latest-feed__meta">
+                <h3 class="latest-feed__title">{{ item.title }}</h3>
+                <div class="latest-feed__info">
+                    <span class="latest-feed__source">{{ item.source }}</span>
+                    {% if item.published_display %}
+                    <time datetime="{{ item.published_iso }}">{{ item.published_display }}</time>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="latest-feed__actions">
+                <a class="chip chip--ghost" href="{{ item.url }}" target="_blank" rel="noopener noreferrer">元記事</a>
+                <form method="post" action="{{ url_for('main.scrape') }}">
+                    <input type="hidden" name="url" value="{{ item.url }}">
+                    <button class="button button--primary" type="submit">AI解析する</button>
+                </form>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+
+    <nav class="pagination" aria-label="ページネーション">
+        {% set prev_page = pagination.page - 1 %}
+        {% set next_page = pagination.page + 1 %}
+        <a class="pagination__link{% if not pagination.has_prev %} is-disabled{% endif %}" 
+           href="{{ url_for('main.latest_feed', page=prev_page, q=search_query or None) if pagination.has_prev else '#' }}">
+           &larr; 前へ
+        </a>
+        <span class="pagination__info">{{ pagination.page }} / {{ pagination.pages }}</span>
+        <a class="pagination__link{% if not pagination.has_next %} is-disabled{% endif %}" 
+           href="{{ url_for('main.latest_feed', page=next_page, q=search_query or None) if pagination.has_next else '#' }}">
+           次へ &rarr;
+        </a>
+    </nav>
+    {% else %}
+    <div class="empty-state empty-state--inline">
+        <h3>記事が見つかりませんでした</h3>
+        {% if search_query %}
+        <p>「{{ search_query }}」に一致する記事がありません。検索キーワードを変更してみてください。</p>
+        <a class="button button--secondary" href="{{ url_for('main.latest_feed') }}">すべての記事を表示</a>
+        {% else %}
+        <p>ネットワークに問題があるか、Yahoo!ニュースRSSが一時停止しています。</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="surface__footer" style="margin-top: 2rem; text-align: center;">
+        <a class="button button--ghost" href="{{ url_for('main.index') }}">&larr; ダッシュボードに戻る</a>
+    </div>
+</section>
+{% endblock %}

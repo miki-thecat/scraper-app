@@ -576,10 +576,20 @@ def api_report_summary():
 _TOKYO_TZ = tz.gettz("Asia/Tokyo")
 
 
-def _latest_articles_for_view(limit: int) -> list[dict[str, Any]]:
-    items = news_feed.fetch_latest_articles(limit=limit)
+def _latest_articles_for_view(limit: int, search_query: str = "") -> list[dict[str, Any]]:
+    items = news_feed.fetch_latest_articles(limit=limit * 3)  # Fetch more for filtering
     latest: list[dict[str, Any]] = []
+    
+    search_lower = search_query.lower() if search_query else ""
+    
     for item in items:
+        # Filter by search query if provided
+        if search_lower:
+            title_match = search_lower in item.title.lower()
+            source_match = search_lower in item.source.lower()
+            if not (title_match or source_match):
+                continue
+        
         published_display = None
         published_iso = None
         if item.published_at:
@@ -600,9 +610,89 @@ def _latest_articles_for_view(limit: int) -> list[dict[str, Any]]:
                 "published_iso": published_iso,
             }
         )
+        
+        # Limit results after filtering
+        if len(latest) >= limit:
+            break
+    
     return latest
 
 
 @bp.get("/healthz")
 def healthz():
     return jsonify({"status": "ok"})
+
+
+@bp.get("/latest-feed")
+@requires_basic_auth
+def latest_feed():
+    """最新Yahoo!ニュースの専用ページ（ページネーション＆検索対応）"""
+    page_param = request.args.get("page", "1")
+    try:
+        page = max(int(page_param), 1)
+    except ValueError:
+        page = 1
+    
+    search_query = request.args.get("q", "").strip()
+    per_page = 20
+    
+    # Fetch more articles to handle filtering
+    all_items = news_feed.fetch_latest_articles(limit=200)
+    
+    # Filter by search query
+    filtered_items = []
+    search_lower = search_query.lower() if search_query else ""
+    
+    for item in all_items:
+        if search_lower:
+            title_match = search_lower in item.title.lower()
+            source_match = search_lower in item.source.lower()
+            if not (title_match or source_match):
+                continue
+        
+        published_display = None
+        published_iso = None
+        if item.published_at:
+            try:
+                local_dt = item.published_at.astimezone(_TOKYO_TZ)
+            except (ValueError, AttributeError):
+                local_dt = None
+            if local_dt:
+                published_display = local_dt.strftime("%Y-%m-%d %H:%M")
+                published_iso = local_dt.isoformat()
+        
+        filtered_items.append(
+            {
+                "title": item.title,
+                "url": item.url,
+                "source": item.source,
+                "published_display": published_display,
+                "published_iso": published_iso,
+            }
+        )
+    
+    # Manual pagination
+    total_items = len(filtered_items)
+    total_pages = (total_items + per_page - 1) // per_page if total_items > 0 else 1
+    page = min(page, total_pages)
+    
+    start_idx = (page - 1) * per_page
+    end_idx = start_idx + per_page
+    page_items = filtered_items[start_idx:end_idx]
+    
+    pagination_info = {
+        "page": page,
+        "pages": total_pages,
+        "total": total_items,
+        "has_prev": page > 1,
+        "has_next": page < total_pages,
+        "per_page": per_page,
+    }
+    
+    return render_template(
+        "latest_feed.html",
+        articles=page_items,
+        pagination=pagination_info,
+        search_query=search_query,
+    )
+

@@ -371,3 +371,70 @@ def test_rerun_ai_respects_disable(app, client, auth_header):
 
     assert resp.status_code == 200
     assert "AI機能は無効化されています" in resp.get_data(as_text=True)
+
+
+def test_latest_feed_page_without_search(app, client, auth_header, mocker):
+    feed_items = [
+        news_feed.NewsFeedItem(
+            title=f"記事{i}",
+            url=f"https://news.yahoo.co.jp/articles/feed-{i}",
+            published_at=datetime.now(timezone.utc),
+            source="Yahoo!ニュース",
+        )
+        for i in range(30)
+    ]
+
+    mocker.patch("app.routes.news_feed.fetch_latest_articles", return_value=feed_items)
+
+    resp = client.get("/latest-feed", headers=auth_header)
+    assert resp.status_code == 200
+    text = resp.get_data(as_text=True)
+    assert "最新のYahoo!ニュースから選ぶ" in text
+    assert "記事0" in text
+    assert "1 / 2" in text  # Page 1 of 2
+
+
+def test_latest_feed_page_with_search(app, client, auth_header, mocker):
+    feed_items = [
+        news_feed.NewsFeedItem(
+            title="経済ニュース",
+            url="https://news.yahoo.co.jp/articles/economy-1",
+            published_at=datetime.now(timezone.utc),
+            source="Yahoo!ニュース - 経済",
+        ),
+        news_feed.NewsFeedItem(
+            title="スポーツニュース",
+            url="https://news.yahoo.co.jp/articles/sports-1",
+            published_at=datetime.now(timezone.utc),
+            source="Yahoo!ニュース - スポーツ",
+        ),
+    ]
+
+    mocker.patch("app.routes.news_feed.fetch_latest_articles", return_value=feed_items)
+
+    resp = client.get("/latest-feed?q=経済", headers=auth_header)
+    assert resp.status_code == 200
+    text = resp.get_data(as_text=True)
+    assert "経済ニュース" in text
+    assert "スポーツニュース" not in text
+
+
+def test_latest_feed_page_pagination(app, client, auth_header, mocker):
+    feed_items = [
+        news_feed.NewsFeedItem(
+            title=f"記事{i}",
+            url=f"https://news.yahoo.co.jp/articles/feed-{i}",
+            published_at=datetime.now(timezone.utc),
+            source="Yahoo!ニュース",
+        )
+        for i in range(25)
+    ]
+
+    mocker.patch("app.routes.news_feed.fetch_latest_articles", return_value=feed_items)
+
+    resp = client.get("/latest-feed?page=2", headers=auth_header)
+    assert resp.status_code == 200
+    text = resp.get_data(as_text=True)
+    assert "記事20" in text
+    assert "記事24" in text
+    assert "2 / 2" in text

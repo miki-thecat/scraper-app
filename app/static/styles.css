@@ -473,6 +473,11 @@ body {
     gap: 12px;
 }
 
+.surface__footer {
+    margin-top: 1.5rem;
+    text-align: center;
+}
+
 .button {
     display: inline-flex;
     align-items: center;
@@ -704,6 +709,21 @@ select:focus-visible {
     display: grid;
     gap: 18px 20px;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.search-form--simple {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+    margin-bottom: 24px;
+}
+
+.search-form--simple .search-form__field {
+    flex: 1;
+}
+
+.search-form--simple .search-form__actions {
+    flex-shrink: 0;
 }
 
 .search-form__field {

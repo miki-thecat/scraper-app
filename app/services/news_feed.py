@@ -140,6 +140,6 @@ def fetch_latest_articles(limit: int = 6) -> list[NewsFeedItem]:
 
     latest_articles = sorted(articles.values(), key=_sort_key, reverse=True)
 
-    sliced = latest_articles[:limit]
+    sliced = latest_articles[:limit] if limit <= len(latest_articles) else latest_articles
     _CACHE[cache_key] = (now, sliced)
     return sliced
