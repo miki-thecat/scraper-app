@@ -12,3 +12,5 @@ scikit-learn==1.5.2
 joblib==1.4.2
 pytest==8.3.2
 pytest-mock==3.14.0
+Flask-Migrate==4.1.0
+python-dotenv==1.1.1

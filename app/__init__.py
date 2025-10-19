@@ -8,6 +8,7 @@ from flask import Flask, jsonify, request
 from .config import Config
 from .models.db import db, init_db
 from .auth import session_manager
+from flask_migrate import Migrate
 
 
 def create_app(config_class: type[Config] | None = None) -> Flask:
@@ -20,6 +21,7 @@ def create_app(config_class: type[Config] | None = None) -> Flask:
 
     db.init_app(app)
     init_db(app)
+    Migrate(app, db)
 
     from .auth.routes import auth_bp
     from .routes import api_bp, bp as main_bp

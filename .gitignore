@@ -4,5 +4,3 @@ __pycache__/
 instance/
 *.sqlite3
 *.db
-docs/handover.md
-docs/
