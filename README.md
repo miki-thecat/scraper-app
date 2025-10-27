@@ -150,17 +150,73 @@ python ml/evaluate.py --valid ml/data/valid.csv
 
 モデルのハイパーパラメータや特徴量設計を調整し、`app/services/ai.py` から呼び出す推論ロジックを差し替えることで、独自のリスクスコアリングに対応できます。
 
+## Dockerでの起動
+
+### 開発環境
+
+ホットリロード対応の開発環境を起動:
+
+```bash
+docker-compose -f docker-compose.dev.yml up --build
+```
+
+アクセス先:
+- アプリケーション: http://localhost:5000
+- pgAdmin (DB管理): http://localhost:5050
+- PostgreSQL: localhost:5433
+
+### 本番環境
+
+本番環境用の構成で起動:
+
+```bash
+# 環境変数を設定
+cp .env.example .env
+# .env を編集して必要な値を設定
+
+# 起動
+docker-compose up -d --build
+```
+
+アクセス先:
+- アプリケーション: http://localhost:8080
+- Nginx (リバースプロキシ): http://localhost:80
+
+### イメージのビルドのみ
+
+```bash
+docker build -t scraper-app:latest .
+```
+
+## CI/CD
+
+GitHub Actions による自動テスト・ビルド・デプロイパイプラインを構築済み:
+
+- **テスト**: pytest + PostgreSQL サービスコンテナ
+- **Lint**: ruff, black, isort によるコード品質チェック
+- **ビルド**: Docker イメージを GitHub Container Registry にプッシュ
+- **デプロイ**: main ブランチへのマージ時に自動デプロイ（要設定）
+
+ワークフロー: `.github/workflows/ci-cd.yml`
+
 ## デプロイガイド
+
+### 従来の方法（EC2 + systemd）
 
 - `deploy/nginx.conf`: リバースプロキシ設定例
 - `deploy/scraper-app.service`: systemd ユニット (Gunicornを想定)
 - `deploy/buildspec.yml`: AWS CodeBuild 用設定
 - `deploy/deploy.sh`: build artifact を EC2 に配布し、サービス再起動まで自動化
 
-Dockerでの動作を想定する場合は以下のような `Dockerfile`/`docker-compose.yml` を用意するとスムーズです。
+### Docker を使った方法（推奨）
 
 ```bash
-docker-compose up --build
+# EC2 インスタンスで
+git clone <repository>
+cd scraper-app
+cp .env.example .env
+# .env を編集
+docker-compose up -d --build
 ```
 
 ## 制作背景とアピールポイント

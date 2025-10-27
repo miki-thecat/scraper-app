@@ -3,8 +3,9 @@ from __future__ import annotations
 import base64
 import csv
 import io
+import os
 from functools import wraps
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from dateutil import parser as dateparser, tz
@@ -49,7 +50,8 @@ def _check_auth(header: str | None) -> bool:
         return False
     try:
         encoded = header.split(" ", 1)[1]
-        username, password = base64.b64decode(encoded).decode("utf-8").split(":", 1)
+        username, password = base64.b64decode(
+            encoded).decode("utf-8").split(":", 1)
     except Exception:
         return False
 
@@ -209,7 +211,8 @@ def index():
 
     risk_band = risk.level_by_slug(risk_param)
 
-    stmt = _article_select(search_query, start_date, end_date, sort_key, order, risk_band)
+    stmt = _article_select(search_query, start_date,
+                           end_date, sort_key, order, risk_band)
 
     pagination = db.paginate(stmt, page=page, per_page=20, error_out=False)
 
@@ -250,7 +253,8 @@ def export_csv():
 
     risk_band = risk.level_by_slug(risk_param)
 
-    stmt = _article_select(search_query, start_date, end_date, sort_key, order, risk_band)
+    stmt = _article_select(search_query, start_date,
+                           end_date, sort_key, order, risk_band)
     articles = db.session.scalars(stmt).all()
 
     buffer = io.StringIO()
@@ -335,7 +339,8 @@ def scrape():
 
     if current_app.config.get("ENABLE_AI", True):
         try:
-            ai_result = ai_service.summarize_and_score(parsed.title, parsed.body[:4000])
+            ai_result = ai_service.summarize_and_score(
+                parsed.title, parsed.body[:4000])
         except ai_service.AIServiceUnavailable as exc:
             flash(str(exc), "warning")
         else:
@@ -391,7 +396,8 @@ def rerun_ai(article_id: str):
         return redirect(url_for("main.result", article_id=article.id))
 
     try:
-        ai_result = ai_service.summarize_and_score(article.title, article.body[:4000])
+        ai_result = ai_service.summarize_and_score(
+            article.title, article.body[:4000])
     except ai_service.AIServiceUnavailable as exc:
         flash(str(exc), "error")
         return redirect(url_for("main.result", article_id=article.id))
@@ -437,8 +443,10 @@ def api_list_articles():
 
     risk_band = risk.level_by_slug(risk_param)
 
-    stmt = _article_select(search_query, start_date, end_date, sort_key, order, risk_band)
-    pagination = db.paginate(stmt, page=page, per_page=per_page, error_out=False)
+    stmt = _article_select(search_query, start_date,
+                           end_date, sort_key, order, risk_band)
+    pagination = db.paginate(
+        stmt, page=page, per_page=per_page, error_out=False)
 
     return jsonify(
         {
@@ -485,7 +493,8 @@ def api_create_article():
             response = scraping.fetch(url)
             parsed = parsing.parse_article(response.url, response.text)
         except scraping.ScrapeError as exc:
-            current_app.logger.warning("API scrape failed for %s: %s", url, exc)
+            current_app.logger.warning(
+                "API scrape failed for %s: %s", url, exc)
             return jsonify({"error": str(exc)}), 502
         except parsing.ParseError as exc:
             current_app.logger.warning("API parse failed for %s: %s", url, exc)
@@ -517,7 +526,8 @@ def api_create_article():
 
     if run_ai and ai_enabled and (force_ai or latest is None or needs_fetch):
         try:
-            ai_result = ai_service.summarize_and_score(article.title, article.body[:4000])
+            ai_result = ai_service.summarize_and_score(
+                article.title, article.body[:4000])
         except ai_service.AIServiceUnavailable as exc:
             ai_error = str(exc)
         else:
@@ -577,11 +587,12 @@ _TOKYO_TZ = tz.gettz("Asia/Tokyo")
 
 
 def _latest_articles_for_view(limit: int, search_query: str = "") -> list[dict[str, Any]]:
-    items = news_feed.fetch_latest_articles(limit=limit * 3)  # Fetch more for filtering
+    items = news_feed.fetch_latest_articles(
+        limit=limit * 3)  # Fetch more for filtering
     latest: list[dict[str, Any]] = []
-    
+
     search_lower = search_query.lower() if search_query else ""
-    
+
     for item in items:
         # Filter by search query if provided
         if search_lower:
@@ -589,7 +600,7 @@ def _latest_articles_for_view(limit: int, search_query: str = "") -> list[dict[s
             source_match = search_lower in item.source.lower()
             if not (title_match or source_match):
                 continue
-        
+
         published_display = None
         published_iso = None
         if item.published_at:
@@ -610,11 +621,11 @@ def _latest_articles_for_view(limit: int, search_query: str = "") -> list[dict[s
                 "published_iso": published_iso,
             }
         )
-        
+
         # Limit results after filtering
         if len(latest) >= limit:
             break
-    
+
     return latest
 
 
@@ -632,24 +643,24 @@ def latest_feed():
         page = max(int(page_param), 1)
     except ValueError:
         page = 1
-    
+
     search_query = request.args.get("q", "").strip()
     per_page = 20
-    
+
     # Fetch more articles to handle filtering (increased limit for more sources)
     all_items = news_feed.fetch_latest_articles(limit=500)
-    
+
     # Filter by search query
     filtered_items = []
     search_lower = search_query.lower() if search_query else ""
-    
+
     for item in all_items:
         if search_lower:
             title_match = search_lower in item.title.lower()
             source_match = search_lower in item.source.lower()
             if not (title_match or source_match):
                 continue
-        
+
         published_display = None
         published_iso = None
         if item.published_at:
@@ -660,7 +671,7 @@ def latest_feed():
             if local_dt:
                 published_display = local_dt.strftime("%Y-%m-%d %H:%M")
                 published_iso = local_dt.isoformat()
-        
+
         filtered_items.append(
             {
                 "title": item.title,
@@ -670,16 +681,17 @@ def latest_feed():
                 "published_iso": published_iso,
             }
         )
-    
+
     # Manual pagination
     total_items = len(filtered_items)
-    total_pages = (total_items + per_page - 1) // per_page if total_items > 0 else 1
+    total_pages = (total_items + per_page -
+                   1) // per_page if total_items > 0 else 1
     page = min(page, total_pages)
-    
+
     start_idx = (page - 1) * per_page
     end_idx = start_idx + per_page
     page_items = filtered_items[start_idx:end_idx]
-    
+
     pagination_info = {
         "page": page,
         "pages": total_pages,
@@ -688,7 +700,7 @@ def latest_feed():
         "has_next": page < total_pages,
         "per_page": per_page,
     }
-    
+
     return render_template(
         "latest_feed.html",
         articles=page_items,
@@ -696,3 +708,52 @@ def latest_feed():
         search_query=search_query,
     )
 
+
+# ========================================
+# Health Check Endpoints
+# ========================================
+
+@bp.route("/health")
+def health_check():
+    """ヘルスチェックエンドポイント（認証不要）"""
+    health_status = {
+        "status": "ok",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "service": "scraper-app",
+        "version": "1.0.0",
+    }
+
+    # データベース接続チェック
+    try:
+        db.session.execute(select(1))
+        health_status["database"] = "ok"
+    except Exception as e:
+        health_status["status"] = "degraded"
+        health_status["database"] = f"error: {str(e)}"
+
+    # OpenAI API設定チェック（接続はしない）
+    if os.getenv("OPENAI_API_KEY"):
+        health_status["openai_configured"] = True
+    else:
+        health_status["openai_configured"] = False
+        health_status["status"] = "degraded"
+
+    status_code = 200 if health_status["status"] == "ok" else 503
+    return jsonify(health_status), status_code
+
+
+@bp.route("/health/ready")
+def readiness_check():
+    """Readinessチェック（Kubernetes等で使用）"""
+    try:
+        # データベース接続確認
+        db.session.execute(select(1))
+        return jsonify({"status": "ready"}), 200
+    except Exception as e:
+        return jsonify({"status": "not_ready", "error": str(e)}), 503
+
+
+@bp.route("/health/live")
+def liveness_check():
+    """Livenessチェック（アプリケーションが生きているか）"""
+    return jsonify({"status": "alive"}), 200

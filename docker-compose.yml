@@ -1,0 +1,126 @@
+version: '3.8'
+
+services:
+  # ========================================
+  # Web Application
+  # ========================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: scraper-app:latest
+    container_name: scraper-app
+    ports:
+      - "8080:8080"
+    environment:
+      # Flask
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - SECRET_KEY=${SECRET_KEY}
+      
+      # Database (use PostgreSQL in production)
+      - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg2://scraper:scraper@db:5432/scraper_db}
+      
+      # Auth
+      - BASIC_AUTH_USERNAME=${BASIC_AUTH_USERNAME:-admin}
+      - BASIC_AUTH_PASSWORD=${BASIC_AUTH_PASSWORD}
+      - API_ACCESS_TOKENS=${API_ACCESS_TOKENS:-}
+      
+      # OpenAI
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      - OPENAI_TIMEOUT=${OPENAI_TIMEOUT:-30}
+      - PROMPT_VERSION=${PROMPT_VERSION:-v1}
+      
+      # App Settings
+      - REQUEST_TIMEOUT=${REQUEST_TIMEOUT:-10}
+      - SCRAPE_RETRY_TOTAL=${SCRAPE_RETRY_TOTAL:-2}
+      - SCRAPE_RETRY_BACKOFF=${SCRAPE_RETRY_BACKOFF:-0.5}
+      - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-60}
+    
+    depends_on:
+      db:
+        condition: service_healthy
+    
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    networks:
+      - scraper-network
+    
+    volumes:
+      # For SQLite if needed (not recommended in production)
+      - app-data:/app/instance
+
+  # ========================================
+  # PostgreSQL Database
+  # ========================================
+  db:
+    image: postgres:15-alpine
+    container_name: scraper-db
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-scraper}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-scraper}
+      - POSTGRES_DB=${POSTGRES_DB:-scraper_db}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --locale=C
+    
+    ports:
+      - "5432:5432"
+    
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-scraper}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+    restart: unless-stopped
+    
+    networks:
+      - scraper-network
+
+  # ========================================
+  # Nginx Reverse Proxy (Optional)
+  # ========================================
+  nginx:
+    image: nginx:alpine
+    container_name: scraper-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/nginx.conf:ro
+      # For SSL certificates
+      # - ./certs:/etc/nginx/certs:ro
+    
+    depends_on:
+      - app
+    
+    restart: unless-stopped
+    
+    networks:
+      - scraper-network
+
+# ========================================
+# Networks
+# ========================================
+networks:
+  scraper-network:
+    driver: bridge
+
+# ========================================
+# Volumes
+# ========================================
+volumes:
+  postgres-data:
+    driver: local
+  app-data:
+    driver: local

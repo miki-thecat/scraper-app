@@ -8,6 +8,7 @@ from flask import Flask, jsonify, request
 from .config import Config
 from .models.db import db, init_db
 from .auth import session_manager
+from flask_migrate import Migrate
 
 
 def create_app(config_class: type[Config] | None = None) -> Flask:
@@ -20,6 +21,7 @@ def create_app(config_class: type[Config] | None = None) -> Flask:
 
     db.init_app(app)
     init_db(app)
+    Migrate(app, db)
 
     from .auth.routes import auth_bp
     from .routes import api_bp, bp as main_bp
@@ -34,6 +36,7 @@ def create_app(config_class: type[Config] | None = None) -> Flask:
     register_cli_commands(app)
 
     _init_rate_limiter(app)
+    _init_security_headers(app)
 
     @app.context_processor
     def _inject_auth_state() -> dict[str, object]:
@@ -89,3 +92,45 @@ def _init_rate_limiter(app: Flask) -> None:
 
         bucket.append(now)
         return None
+
+
+def _init_security_headers(app: Flask) -> None:
+    """セキュリティヘッダーを設定"""
+    
+    @app.after_request
+    def _add_security_headers(response):
+        # Content Security Policy - XSS対策
+        response.headers['Content-Security-Policy'] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: https:; "
+            "font-src 'self'; "
+            "connect-src 'self'; "
+            "frame-ancestors 'none'"
+        )
+        
+        # クリックジャッキング対策
+        response.headers['X-Frame-Options'] = 'DENY'
+        
+        # MIMEタイプスニッフィング対策
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        
+        # XSS Protection（古いブラウザ用）
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        
+        # HTTPS強制（本番環境のみ）
+        if app.config.get('FLASK_ENV') == 'production':
+            response.headers['Strict-Transport-Security'] = (
+                'max-age=31536000; includeSubDomains'
+            )
+        
+        # Referrer Policy
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        
+        # Permissions Policy（旧Feature Policy）
+        response.headers['Permissions-Policy'] = (
+            'geolocation=(), microphone=(), camera=()'
+        )
+        
+        return response

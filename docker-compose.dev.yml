@@ -1,0 +1,121 @@
+version: '3.8'
+
+# ========================================
+# Development Environment
+# ========================================
+
+services:
+  # ========================================
+  # Web Application (Development Mode)
+  # ========================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: scraper-app:dev
+    container_name: scraper-app-dev
+    ports:
+      - "5000:8080"
+    
+    environment:
+      # Flask Development Mode
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - SECRET_KEY=dev-secret-key-change-in-production
+      
+      # Database
+      - DATABASE_URL=postgresql+psycopg2://scraper:scraper@db:5432/scraper_dev
+      
+      # Auth (development defaults)
+      - BASIC_AUTH_USERNAME=admin
+      - BASIC_AUTH_PASSWORD=password
+      
+      # OpenAI (set in .env)
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=gpt-4o-mini
+      - OPENAI_TIMEOUT=30
+      
+      # Development settings
+      - REQUEST_TIMEOUT=10
+      - SCRAPE_RETRY_TOTAL=2
+      - RATE_LIMIT_PER_MINUTE=1000
+    
+    depends_on:
+      db:
+        condition: service_healthy
+    
+    # Hot reload: mount source code
+    volumes:
+      - ./app:/app/app
+      - ./cli:/app/cli
+      - ./ml:/app/ml
+      - ./templates:/app/templates
+      - ./statics:/app/statics
+      - dev-instance:/app/instance
+    
+    # Override CMD for development with auto-reload
+    command: flask --app app.main run --host=0.0.0.0 --port=8080 --reload
+    
+    networks:
+      - scraper-dev-network
+
+  # ========================================
+  # PostgreSQL Database (Development)
+  # ========================================
+  db:
+    image: postgres:15-alpine
+    container_name: scraper-db-dev
+    environment:
+      - POSTGRES_USER=scraper
+      - POSTGRES_PASSWORD=scraper
+      - POSTGRES_DB=scraper_dev
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8
+    
+    ports:
+      - "5433:5432"  # Different port to avoid conflicts
+    
+    volumes:
+      - dev-postgres-data:/var/lib/postgresql/data
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scraper"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    
+    networks:
+      - scraper-dev-network
+
+  # ========================================
+  # pgAdmin (Database Management UI)
+  # ========================================
+  # WARNING: This configuration is for DEVELOPMENT ONLY.
+  # Do NOT use in production. Credentials are set via environment variables.
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: scraper-pgadmin
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD}
+      - PGADMIN_CONFIG_SERVER_MODE=False
+    
+    ports:
+      - "5050:80"
+    
+    depends_on:
+      - db
+    
+    networks:
+      - scraper-dev-network
+    
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+
+networks:
+  scraper-dev-network:
+    driver: bridge
+
+volumes:
+  dev-postgres-data:
+  dev-instance:
+  pgadmin-data:
