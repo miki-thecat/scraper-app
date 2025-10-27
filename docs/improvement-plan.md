@@ -235,13 +235,14 @@ response = client.chat.completions.create(  # ✅ 正しいメソッド
 
 ## 📋 実装ロードマップ
 
-### フェーズ 1: 緊急修正・デプロイ準備（1-2週間）
+### フェーズ 1: 緊急修正・デプロイ準備（1-2週間）✅ 完了
 
-1. ✅ AI機能バグ修正
-2. ✅ Dockerfile & docker-compose.yml 作成
-3. ✅ GitHub Actions CI/CD 構築
-4. ✅ ヘルスチェックエンドポイント追加
-5. ✅ 環境変数管理の改善
+1. ✅ AI機能バグ修正 - `de7cc66`
+2. ✅ Dockerfile & docker-compose.yml 作成 - `710b53e`
+3. ✅ GitHub Actions CI/CD 構築 - `d69f747`
+4. ✅ ヘルスチェックエンドポイント追加 - `de7cc66`
+5. ✅ .gitignore拡張（環境変数管理の改善）- `cf94629`
+6. ✅ テスト修正・追加 - `58e75c3`
 
 ### フェーズ 2: セキュリティ・監視強化（2-3週間）
 
