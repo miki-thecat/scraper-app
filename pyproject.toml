@@ -1,0 +1,14 @@
+[tool.ruff]
+# Exclude migrations from linting (auto-generated code)
+exclude = [
+    "migrations",
+    ".git",
+    "__pycache__",
+    ".pytest_cache",
+]
+
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = []

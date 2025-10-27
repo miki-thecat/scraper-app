@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from collections import defaultdict, deque
 from time import time
+from typing import DefaultDict
 
 from flask import Flask, jsonify, request
+from flask_migrate import Migrate
 
 from .config import Config
 from .models.db import db, init_db
 from .auth import session_manager
-from flask_migrate import Migrate
 
 
 def create_app(config_class: type[Config] | None = None) -> Flask:
@@ -46,9 +47,6 @@ def create_app(config_class: type[Config] | None = None) -> Flask:
         }
 
     return app
-
-
-from typing import DefaultDict
 
 
 _RATE_BUCKETS: DefaultDict[tuple[str, str], deque[float]] = defaultdict(deque)
@@ -96,7 +94,7 @@ def _init_rate_limiter(app: Flask) -> None:
 
 def _init_security_headers(app: Flask) -> None:
     """セキュリティヘッダーを設定"""
-    
+
     @app.after_request
     def _add_security_headers(response):
         # Content Security Policy - XSS対策
@@ -109,28 +107,28 @@ def _init_security_headers(app: Flask) -> None:
             "connect-src 'self'; "
             "frame-ancestors 'none'"
         )
-        
+
         # クリックジャッキング対策
         response.headers['X-Frame-Options'] = 'DENY'
-        
+
         # MIMEタイプスニッフィング対策
         response.headers['X-Content-Type-Options'] = 'nosniff'
-        
+
         # XSS Protection（古いブラウザ用）
         response.headers['X-XSS-Protection'] = '1; mode=block'
-        
+
         # HTTPS強制（本番環境のみ）
         if app.config.get('FLASK_ENV') == 'production':
             response.headers['Strict-Transport-Security'] = (
                 'max-age=31536000; includeSubDomains'
             )
-        
+
         # Referrer Policy
         response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-        
+
         # Permissions Policy（旧Feature Policy）
         response.headers['Permissions-Policy'] = (
             'geolocation=(), microphone=(), camera=()'
         )
-        
+
         return response
