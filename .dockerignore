@@ -1,0 +1,54 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+.env.local
+.env.*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Database
+instance/
+*.db
+*.sqlite3
+
+# Documentation (not needed in image)
+docs/
+README.md
+*.md
+
+# Tests
+tests/
+pytest.ini
+.coverage
+
+# Deployment
+deploy/
+.devcontainer/
+docker-compose.yml
+Dockerfile
+
+# Logs
+*.log
+
+# OS
+Thumbs.db
