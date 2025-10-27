@@ -4,3 +4,25 @@ __pycache__/
 instance/
 *.sqlite3
 *.db
+
+# Environment variables
+.env
+.env.local
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
