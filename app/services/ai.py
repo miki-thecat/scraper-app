@@ -61,14 +61,14 @@ def summarize_and_score(title: str, body: str) -> AIResult:
     client = OpenAI(api_key=api_key)
 
     try:
-        response = client.responses.create(
+        response = client.chat.completions.create(
             model=model,
-            input=[
+            messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
             temperature=0.2,
-            max_output_tokens=500,
+            max_tokens=500,
             response_format={"type": "json_object"},
             timeout=current_app.config.get("OPENAI_TIMEOUT", 30),
         )
@@ -102,18 +102,9 @@ def summarize_and_score(title: str, body: str) -> AIResult:
 
 
 def _extract_text(response: Any) -> str:
-    if hasattr(response, "output"):
-        chunks = []
-        for item in response.output:  # type: ignore[attr-defined]
-            content = getattr(item, "content", None)
-            if not content:
-                continue
-            for inner in content:
-                text = getattr(inner, "text", None)
-                if text and getattr(text, "value", None):
-                    chunks.append(text.value)
-        return "".join(chunks)
-    if hasattr(response, "choices"):
-        # 旧ChatCompletions互換
-        return response.choices[0].message["content"]  # type: ignore[index]
+    """OpenAI ChatCompletion レスポンスからテキストを抽出"""
+    if hasattr(response, "choices") and len(response.choices) > 0:
+        message = response.choices[0].message
+        if hasattr(message, "content"):
+            return message.content
     raise AIServiceUnavailable("AI応答フォーマットを解釈できませんでした。")

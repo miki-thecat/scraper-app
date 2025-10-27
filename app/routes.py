@@ -696,3 +696,55 @@ def latest_feed():
         search_query=search_query,
     )
 
+
+# ========================================
+# Health Check Endpoints
+# ========================================
+
+@bp.route("/health")
+def health_check():
+    """ヘルスチェックエンドポイント（認証不要）"""
+    import os
+    
+    health_status = {
+        "status": "ok",
+        "timestamp": datetime.utcnow().isoformat(),
+        "service": "scraper-app",
+        "version": "1.0.0",
+    }
+    
+    # データベース接続チェック
+    try:
+        db.session.execute(select(1))
+        health_status["database"] = "ok"
+    except Exception as e:
+        health_status["status"] = "degraded"
+        health_status["database"] = f"error: {str(e)}"
+    
+    # OpenAI API設定チェック（接続はしない）
+    if os.getenv("OPENAI_API_KEY"):
+        health_status["openai_configured"] = True
+    else:
+        health_status["openai_configured"] = False
+        health_status["status"] = "degraded"
+    
+    status_code = 200 if health_status["status"] == "ok" else 503
+    return jsonify(health_status), status_code
+
+
+@bp.route("/health/ready")
+def readiness_check():
+    """Readinessチェック（Kubernetes等で使用）"""
+    try:
+        # データベース接続確認
+        db.session.execute(select(1))
+        return jsonify({"status": "ready"}), 200
+    except Exception as e:
+        return jsonify({"status": "not_ready", "error": str(e)}), 503
+
+
+@bp.route("/health/live")
+def liveness_check():
+    """Livenessチェック（アプリケーションが生きているか）"""
+    return jsonify({"status": "alive"}), 200
+
