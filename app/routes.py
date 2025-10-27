@@ -3,8 +3,9 @@ from __future__ import annotations
 import base64
 import csv
 import io
+import os
 from functools import wraps
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from dateutil import parser as dateparser, tz
@@ -704,11 +705,9 @@ def latest_feed():
 @bp.route("/health")
 def health_check():
     """ヘルスチェックエンドポイント（認証不要）"""
-    import os
-    
     health_status = {
         "status": "ok",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "service": "scraper-app",
         "version": "1.0.0",
     }
