@@ -1,6 +1,18 @@
+# Python
 __pycache__/
 .pytest_cache/
 *.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# Database
 instance/
 *.sqlite3
 *.db
@@ -8,17 +20,20 @@ instance/
 # Environment variables
 .env
 .env.local
+.env.*.local
 
 # Build artifacts
 build/
 dist/
 *.egg-info/
+*.egg
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
 
 # OS
 .DS_Store
@@ -26,5 +41,32 @@ Thumbs.db
 
 # Logs
 *.log
+logs/
+
+# Coverage
+.coverage
+htmlcov/
+coverage.xml
+
+# Docker volumes
+postgres-data/
+dev-postgres-data/
+dev-instance/
+
+# Temporary files
+*.tmp
+*.bak
+*.orig
+
+# ML artifacts
+ml/artifacts/
+ml/models/*.pkl
+ml/models/*.joblib
+
+# Secrets
+*.pem
+*.key
+*.crt
+secret*.txt
 
 
