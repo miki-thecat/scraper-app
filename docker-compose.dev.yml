@@ -89,12 +89,14 @@ services:
   # ========================================
   # pgAdmin (Database Management UI)
   # ========================================
+  # WARNING: This configuration is for DEVELOPMENT ONLY.
+  # Do NOT use in production. Credentials are set via environment variables.
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: scraper-pgadmin
     environment:
-      - PGADMIN_DEFAULT_EMAIL=admin@example.com
-      - PGADMIN_DEFAULT_PASSWORD=admin
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD}
       - PGADMIN_CONFIG_SERVER_MODE=False
     
     ports:
