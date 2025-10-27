@@ -24,16 +24,19 @@ def test_ai_requires_api_key(app, monkeypatch):
 
 
 def test_ai_parses_response(app, monkeypatch):
-    class FakeResponses:
+    class FakeCompletions:
         def create(self, **kwargs):
-            text = SimpleNamespace(value='{"summary": "要約", "risk_score": 42}')
-            content = SimpleNamespace(text=text)
-            output = SimpleNamespace(content=[content])
-            return SimpleNamespace(output=[output])
+            message = SimpleNamespace(content='{"summary": "要約", "risk_score": 42}')
+            choice = SimpleNamespace(message=message)
+            return SimpleNamespace(choices=[choice])
+
+    class FakeChat:
+        def __init__(self):
+            self.completions = FakeCompletions()
 
     class FakeOpenAI:
         def __init__(self, *args, **kwargs):
-            self.responses = FakeResponses()
+            self.chat = FakeChat()
 
     with app.app_context():
         app.config["ENABLE_AI"] = True

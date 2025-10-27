@@ -438,3 +438,46 @@ def test_latest_feed_page_pagination(app, client, auth_header, mocker):
     assert "記事20" in text
     assert "記事24" in text
     assert "2 / 2" in text
+
+
+# ========================================
+# Health Check Tests
+# ========================================
+
+def test_health_check_ok(client, monkeypatch):
+    """正常なヘルスチェック"""
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    resp = client.get("/health")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["status"] == "ok"
+    assert data["database"] == "ok"
+    assert data["openai_configured"] is True
+    assert "timestamp" in data
+    assert data["service"] == "scraper-app"
+
+
+def test_health_check_degraded_no_openai(client, monkeypatch):
+    """OpenAI未設定時のヘルスチェック"""
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    resp = client.get("/health")
+    assert resp.status_code == 503
+    data = resp.get_json()
+    assert data["status"] == "degraded"
+    assert data["openai_configured"] is False
+
+
+def test_readiness_check(client):
+    """Readinessチェック"""
+    resp = client.get("/health/ready")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["status"] == "ready"
+
+
+def test_liveness_check(client):
+    """Livenessチェック"""
+    resp = client.get("/health/live")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["status"] == "alive"
