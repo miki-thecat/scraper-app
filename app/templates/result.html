@@ -33,6 +33,7 @@
         </div>
         {% if config.get('ENABLE_AI', True) %}
         <form class="surface__actions" method="post" action="{{ url_for('main.rerun_ai', article_id=article.id) }}">
+            {{ csrf_token() }}
             <button class="button button--primary" type="submit">{% if inference %}AI推論を再実行{% else %}AI推論を実行{% endif %}</button>
         </form>
         {% endif %}

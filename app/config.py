@@ -74,6 +74,12 @@ class Config:
     PROMPT_VERSION = os.getenv("PROMPT_VERSION", "v1")
     ENABLE_AI = os.getenv("ENABLE_AI", "1") not in {"0", "false", "False"}
 
+    # CSRF Protection
+    WTF_CSRF_ENABLED = True
+    WTF_CSRF_TIME_LIMIT = 3600
+    WTF_CSRF_SSL_STRICT = False
+    WTF_CSRF_CHECK_DEFAULT = True
+
     # Misc
     PERMANENT_SESSION_LIFETIME = timedelta(days=7)
 
@@ -97,3 +103,4 @@ class DevConfig(Config):
 
 class ProdConfig(Config):
     DEBUG = False
+    WTF_CSRF_SSL_STRICT = True

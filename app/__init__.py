@@ -6,10 +6,13 @@ from typing import DefaultDict
 
 from flask import Flask, jsonify, request
 from flask_migrate import Migrate
+from flask_wtf.csrf import CSRFProtect
 
 from .config import Config
 from .models.db import db, init_db
 from .auth import session_manager
+
+csrf = CSRFProtect()
 
 
 def create_app(config_class: type[Config] | None = None) -> Flask:
@@ -23,6 +26,7 @@ def create_app(config_class: type[Config] | None = None) -> Flask:
     db.init_app(app)
     init_db(app)
     Migrate(app, db)
+    csrf.init_app(app)
 
     from .auth.routes import auth_bp
     from .routes import api_bp, bp as main_bp
@@ -38,6 +42,7 @@ def create_app(config_class: type[Config] | None = None) -> Flask:
 
     _init_rate_limiter(app)
     _init_security_headers(app)
+    _init_csrf_error_handler(app)
 
     @app.context_processor
     def _inject_auth_state() -> dict[str, object]:
@@ -132,3 +137,16 @@ def _init_security_headers(app: Flask) -> None:
         )
 
         return response
+
+
+def _init_csrf_error_handler(app: Flask) -> None:
+    """CSRFエラー時のカスタムハンドラを設定"""
+    from flask_wtf.csrf import CSRFError
+
+    @app.errorhandler(CSRFError)
+    def handle_csrf_error(e):
+        app.logger.warning(f'CSRF validation failed: {e.description}')
+        return jsonify({
+            'error': 'セキュリティ上の理由により、リクエストが拒否されました。',
+            'details': e.description
+        }), 400
