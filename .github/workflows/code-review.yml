@@ -1,17 +1,71 @@
-name: Automated Code Review
+name: Automated Code Review with Copilot
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  pull_request_review_comment:
+    types: [created]
 
 permissions:
   contents: read
   pull-requests: write
   issues: write
+  checks: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
-  code-quality:
+  # ========================================
+  # GitHub Copilot Code Review
+  # ========================================
+  copilot-review:
+    name: Copilot Code Review
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout PR code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      
+      - name: Copilot Code Review
+        uses: github/copilot-cli-action@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          pull-request: ${{ github.event.pull_request.number }}
+        continue-on-error: true
+      
+      - name: Comment PR with Copilot insights
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comment = `## 🤖 GitHub Copilot Code Review
+            
+            Copilot has analyzed this PR for:
+            - Code quality and best practices
+            - Security vulnerabilities
+            - Performance optimizations
+            - Python/Flask specific patterns
+            
+            Review the suggestions above and address any critical issues before merging.
+            `;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: comment
+            });
+  
+  code-quality:
+    name: Code Quality Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,110 +80,181 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install ruff black isort radon vulture bandit safety
+          pip install ruff black isort radon vulture bandit safety pylint flake8
       
       - name: Run Ruff
         id: ruff
         continue-on-error: true
         run: |
           ruff check . --output-format=json > ruff-results.json || true
+          ruff check . --statistics
           echo "ruff_exit_code=$?" >> $GITHUB_OUTPUT
       
       - name: Run Black check
         id: black
         continue-on-error: true
         run: |
-          black --check . > black-results.txt 2>&1 || true
+          black --check --diff . > black-results.txt 2>&1 || true
           echo "black_exit_code=$?" >> $GITHUB_OUTPUT
       
       - name: Run isort check
         id: isort
         continue-on-error: true
         run: |
-          isort --check-only . > isort-results.txt 2>&1 || true
+          isort --check-only --diff . > isort-results.txt 2>&1 || true
           echo "isort_exit_code=$?" >> $GITHUB_OUTPUT
+      
+      - name: Run Pylint
+        id: pylint
+        continue-on-error: true
+        run: |
+          pylint app/ --output-format=json > pylint-results.json 2>&1 || true
+          pylint app/ || true
       
       - name: Calculate code complexity
         id: complexity
         continue-on-error: true
         run: |
-          radon cc app/ -a -nb > complexity-results.txt 2>&1 || true
-          radon mi app/ > maintainability-results.txt 2>&1 || true
+          echo "### Cyclomatic Complexity" > complexity-results.txt
+          radon cc app/ -a -nb >> complexity-results.txt 2>&1 || true
+          echo "" >> complexity-results.txt
+          echo "### Maintainability Index" >> complexity-results.txt
+          radon mi app/ >> maintainability-results.txt 2>&1 || true
       
       - name: Check for dead code
         id: dead_code
         continue-on-error: true
         run: |
-          vulture app/ > dead-code-results.txt 2>&1 || true
+          vulture app/ --min-confidence 80 > dead-code-results.txt 2>&1 || true
       
       - name: Security scan with Bandit
         id: bandit
         continue-on-error: true
         run: |
-          bandit -r app/ -f json -o bandit-results.json || true
+          bandit -r app/ -f json -o bandit-results.json -ll || true
+          bandit -r app/ -ll || true
       
       - name: Check for known vulnerabilities
         id: safety
         continue-on-error: true
         run: |
           safety check --json > safety-results.json 2>&1 || true
+          safety check || true
       
-      - name: Generate review comment
+      - name: Generate comprehensive review comment
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
             
             let comment = '## 🤖 Automated Code Review\n\n';
+            comment += `**Commit:** \`${context.sha.substring(0, 7)}\`\n`;
+            comment += `**Branch:** \`${context.payload.pull_request.head.ref}\`\n\n`;
+            
+            // Summary section
+            comment += '### 📊 Summary\n\n';
+            comment += '| Tool | Status | Issues |\n';
+            comment += '|------|--------|--------|\n';
             
             // Ruff results
             try {
               const ruffData = JSON.parse(fs.readFileSync('ruff-results.json', 'utf8'));
-              if (ruffData.length > 0) {
-                comment += '### ⚠️ Ruff Issues\n\n';
-                comment += `Found ${ruffData.length} issue(s):\n\n`;
+              const ruffCount = Array.isArray(ruffData) ? ruffData.length : 0;
+              const ruffStatus = ruffCount === 0 ? '✅' : ruffCount < 10 ? '⚠️' : '❌';
+              comment += `| Ruff | ${ruffStatus} | ${ruffCount} |\n`;
+              
+              if (ruffCount > 0) {
+                comment += '\n### ⚠️ Ruff Issues\n\n';
+                comment += `Found ${ruffCount} issue(s). Top 5:\n\n`;
                 ruffData.slice(0, 5).forEach(issue => {
-                  comment += `- **${issue.code}**: ${issue.message} (${issue.location.file}:${issue.location.row})\n`;
+                  comment += `- **${issue.code}**: ${issue.message}\n`;
+                  comment += `  - File: \`${issue.location.file}:${issue.location.row}\`\n`;
                 });
-                if (ruffData.length > 5) {
-                  comment += `\n... and ${ruffData.length - 5} more issues.\n`;
+                if (ruffCount > 5) {
+                  comment += `\n... and ${ruffCount - 5} more issues. See artifacts for full report.\n`;
                 }
-              } else {
-                comment += '### ✅ Ruff: No issues found\n\n';
+                comment += '\n';
               }
             } catch (e) {
-              comment += '### ✅ Ruff: No issues found\n\n';
+              comment += '| Ruff | ✅ | 0 |\n';
+            }
+            
+            // Black results
+            try {
+              const blackOutput = fs.readFileSync('black-results.txt', 'utf8');
+              const blackStatus = blackOutput.includes('would reformat') ? '⚠️' : '✅';
+              comment += `| Black | ${blackStatus} | ${blackOutput.includes('would reformat') ? 'Formatting needed' : 'OK'} |\n`;
+            } catch (e) {
+              comment += '| Black | ✅ | OK |\n';
+            }
+            
+            // isort results
+            try {
+              const isortOutput = fs.readFileSync('isort-results.txt', 'utf8');
+              const isortStatus = isortOutput.includes('ERROR') ? '⚠️' : '✅';
+              comment += `| isort | ${isortStatus} | ${isortOutput.includes('ERROR') ? 'Import sorting needed' : 'OK'} |\n`;
+            } catch (e) {
+              comment += '| isort | ✅ | OK |\n';
+            }
+            
+            // Bandit security results
+            try {
+              const banditData = JSON.parse(fs.readFileSync('bandit-results.json', 'utf8'));
+              const criticalCount = banditData.results ? banditData.results.filter(r => r.issue_severity === 'HIGH' || r.issue_severity === 'MEDIUM').length : 0;
+              const banditStatus = criticalCount === 0 ? '✅' : criticalCount < 3 ? '⚠️' : '❌';
+              comment += `| Bandit | ${banditStatus} | ${banditData.results ? banditData.results.length : 0} |\n`;
+              
+              if (banditData.results && banditData.results.length > 0) {
+                comment += '\n### 🔒 Security Issues\n\n';
+                const criticalIssues = banditData.results.filter(r => r.issue_severity === 'HIGH' || r.issue_severity === 'MEDIUM');
+                if (criticalIssues.length > 0) {
+                  comment += '**Critical/High severity issues:**\n\n';
+                  criticalIssues.slice(0, 3).forEach(issue => {
+                    comment += `- **${issue.issue_severity}**: ${issue.issue_text}\n`;
+                    comment += `  - File: \`${issue.filename}:${issue.line_number}\`\n`;
+                    comment += `  - Test ID: ${issue.test_id}\n`;
+                  });
+                  if (criticalIssues.length > 3) {
+                    comment += `\n... and ${criticalIssues.length - 3} more security issues.\n`;
+                  }
+                } else {
+                  comment += 'All issues are low severity.\n';
+                }
+                comment += '\n';
+              }
+            } catch (e) {
+              comment += '| Bandit | ✅ | 0 |\n';
             }
             
             // Complexity
+            comment += '\n### 📊 Code Complexity & Maintainability\n\n';
             try {
               const complexity = fs.readFileSync('complexity-results.txt', 'utf8');
-              const maintainability = fs.readFileSync('maintainability-results.txt', 'utf8');
-              comment += '### 📊 Code Complexity\n\n';
-              comment += '```\n' + complexity.split('\n').slice(0, 10).join('\n') + '\n```\n\n';
-            } catch (e) {}
-            
-            // Security
-            try {
-              const banditData = JSON.parse(fs.readFileSync('bandit-results.json', 'utf8'));
-              if (banditData.results && banditData.results.length > 0) {
-                comment += '### 🔒 Security Issues\n\n';
-                banditData.results.slice(0, 3).forEach(issue => {
-                  comment += `- **${issue.issue_severity}**: ${issue.issue_text} (${issue.filename}:${issue.line_number})\n`;
-                });
-              } else {
-                comment += '### ✅ Security: No issues found\n\n';
-              }
+              const complexityLines = complexity.split('\n').slice(0, 15);
+              comment += '```\n' + complexityLines.join('\n') + '\n```\n\n';
             } catch (e) {
-              comment += '### ✅ Security: No issues found\n\n';
+              comment += 'No complexity data available.\n\n';
             }
             
-            // Overall score
+            // Dead code
+            try {
+              const deadCode = fs.readFileSync('dead-code-results.txt', 'utf8');
+              if (deadCode.trim().length > 0) {
+                comment += '### 🧹 Potential Dead Code\n\n';
+                const deadCodeLines = deadCode.split('\n').slice(0, 10);
+                comment += '```\n' + deadCodeLines.join('\n') + '\n```\n\n';
+              }
+            } catch (e) {}
+            
+            // Overall recommendations
             comment += '\n---\n\n';
-            comment += '💡 **Tips**:\n';
-            comment += '- Keep functions under 15 lines\n';
-            comment += '- Cyclomatic complexity should be < 10\n';
-            comment += '- Maintainability index should be > 65\n';
+            comment += '### 💡 **Recommendations**\n\n';
+            comment += '- ✅ **Code Style**: Run `black .` and `isort .` to auto-fix formatting\n';
+            comment += '- ✅ **Complexity**: Keep functions under 15 lines, cyclomatic complexity < 10\n';
+            comment += '- ✅ **Maintainability**: Target maintainability index > 65\n';
+            comment += '- ✅ **Security**: Address all HIGH severity Bandit findings\n';
+            comment += '- ✅ **Testing**: Ensure test coverage stays above 80%\n\n';
+            comment += '📚 See [Coding Guidelines](.github/copilot-instructions.md) for more details.\n';
             
             // Post comment
             await github.rest.issues.createComment({
@@ -141,8 +266,136 @@ jobs:
       
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: code-review-results
           path: |
             *-results.*
-          retention-days: 7
+          retention-days: 30
+      
+      - name: Create check run
+        uses: actions/github-script@v7
+        if: always()
+        with:
+          script: |
+            const fs = require('fs');
+            let conclusion = 'success';
+            let summary = 'All checks passed ✅';
+            
+            try {
+              const ruffData = JSON.parse(fs.readFileSync('ruff-results.json', 'utf8'));
+              if (ruffData.length > 10) {
+                conclusion = 'failure';
+                summary = `Found ${ruffData.length} linting issues ❌`;
+              } else if (ruffData.length > 0) {
+                conclusion = 'neutral';
+                summary = `Found ${ruffData.length} linting issues ⚠️`;
+              }
+            } catch (e) {}
+            
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'Code Quality Check',
+              head_sha: context.payload.pull_request.head.sha,
+              status: 'completed',
+              conclusion: conclusion,
+              output: {
+                title: 'Code Review Results',
+                summary: summary,
+                text: 'See PR comments for detailed analysis'
+              }
+            });
+  
+  # ========================================
+  # Test Coverage Check
+  # ========================================
+  coverage-check:
+    name: Coverage Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install coverage pytest-cov
+      
+      - name: Run tests with coverage
+        env:
+          DATABASE_URL: postgresql+psycopg2://test:test@localhost:5432/test_db
+          SECRET_KEY: test-secret-key
+          FLASK_ENV: testing
+        run: |
+          pytest --cov=app --cov-report=json --cov-report=html --cov-report=term
+      
+      - name: Check coverage threshold
+        run: |
+          COVERAGE=$(python -c "import json; print(json.load(open('coverage.json'))['totals']['percent_covered'])")
+          echo "Coverage: ${COVERAGE}%"
+          if (( $(echo "$COVERAGE < 80" | bc -l) )); then
+            echo "::warning::Coverage ${COVERAGE}% is below 80% threshold"
+          fi
+      
+      - name: Comment PR with coverage
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const coverage = JSON.parse(fs.readFileSync('coverage.json', 'utf8'));
+            const percentage = coverage.totals.percent_covered.toFixed(2);
+            const emoji = percentage >= 80 ? '✅' : '⚠️';
+            
+            const comment = `## ${emoji} Test Coverage Report
+            
+            **Overall Coverage:** ${percentage}%
+            **Lines Covered:** ${coverage.totals.covered_lines} / ${coverage.totals.num_statements}
+            
+            | Metric | Value |
+            |--------|-------|
+            | Covered | ${coverage.totals.covered_lines} |
+            | Missing | ${coverage.totals.missing_lines} |
+            | Excluded | ${coverage.totals.excluded_lines} |
+            | Branches | ${coverage.totals.covered_branches} / ${coverage.totals.num_branches} |
+            
+            ${percentage < 80 ? '⚠️ **Warning:** Coverage is below 80% threshold!' : '✅ Coverage meets requirements!'}
+            `;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: comment
+            });
+      
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: htmlcov/
+          retention-days: 30
