@@ -89,14 +89,13 @@ class Config:
         token.strip()
         for token in os.getenv(
             "NIFTY_FEED_URLS",
-            "https://news.nifty.com/rss/domestic.xml,"
-            "https://news.nifty.com/rss/world.xml,"
-            "https://news.nifty.com/rss/economy.xml,"
-            "https://news.nifty.com/rss/entertainment.xml,"
-            "https://news.nifty.com/rss/it.xml,"
-            "https://news.nifty.com/rss/sports.xml,"
-            "https://news.nifty.com/rss/social.xml,"
-            "https://news.nifty.com/rss/science.xml",
+            "https://news.nifty.com/rss/topics_pickup.xml,"
+            "https://news.nifty.com/rss/topics_domestic.xml,"
+            "https://news.nifty.com/rss/topics_world.xml,"
+            "https://news.nifty.com/rss/topics_economy.xml,"
+            "https://news.nifty.com/rss/topics_entame.xml,"
+            "https://news.nifty.com/rss/topics_sports.xml,"
+            "https://news.nifty.com/rss/topics_technology.xml",
         ).split(",")
         if token.strip()
     )
