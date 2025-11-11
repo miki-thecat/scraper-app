@@ -12,7 +12,7 @@
     <div class="surface__header">
         <div>
             <h2>記事URLをスクレイピング</h2>
-            <p class="surface__description">Yahoo!ニュースのURLを貼り付けるだけで、AIリスク評価まで一気に実行します。</p>
+            <p class="surface__description">Yahoo!ニュース・@niftyニュースのURLを貼り付けるだけで、AIリスク評価まで一気に実行します。</p>
         </div>
         <span class="surface__hint">STEP 1</span>
     </div>
@@ -20,8 +20,8 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="url" class="sr-only">スクレイピングするURLを入力</label>
         <div class="scrape-form__field">
-            <input id="url" name="url" type="url" placeholder="https://news.yahoo.co.jp/articles/..." required>
-            <p class="scrape-form__note">Yahoo!ニュースの記事URLのみ対応しています</p>
+            <input id="url" name="url" type="url" placeholder="https://news.yahoo.co.jp/articles/... または https://news.nifty.com/article/..." required>
+            <p class="scrape-form__note">Yahoo!ニュース・@niftyニュースの記事URLに対応しています</p>
         </div>
         <button class="button button--primary" type="submit">実行する</button>
     </form>

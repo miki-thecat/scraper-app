@@ -167,9 +167,26 @@ def ingest_article(
     if needs_fetch:
         try:
             response = scraping.fetch(url)
+            
             # ソースに応じてパーサーを選択
             if source == "nifty_news":
-                parsed = nifty_news.NiftyNewsParser.parse_article(response.text, response.url)
+                # トピックスページの場合、記事URLを抽出
+                if '/topics/' in response.url:
+                    article_url = nifty_news.NiftyNewsParser.extract_article_url(response.text)
+                    if article_url:
+                        current_app.logger.info(f"Extracted article URL: {article_url}")
+                        # 記事ページを再取得
+                        article_response = scraping.fetch(article_url)
+                        parsed = nifty_news.NiftyNewsParser.parse_article(
+                            article_response.text, article_response.url
+                        )
+                    else:
+                        # 記事URL取得失敗時はトピックスページをそのままパース
+                        current_app.logger.warning(f"Could not extract article URL from topics page: {url}")
+                        parsed = nifty_news.NiftyNewsParser.parse_article(response.text, response.url)
+                else:
+                    # 記事URLを直接指定された場合
+                    parsed = nifty_news.NiftyNewsParser.parse_article(response.text, response.url)
             else:
                 parsed = parsing.parse_article(response.url, response.text)
         except scraping.ScrapeError as exc:
