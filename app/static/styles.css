@@ -431,6 +431,37 @@ body {
     margin: 0;
 }
 
+.latest-feed__group {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.latest-feed__group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.latest-feed__group-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.latest-feed__empty {
+    padding: 1rem;
+    text-align: center;
+    border-radius: 0.75rem;
+    border: 1px dashed rgba(255, 255, 255, 0.25);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.9rem;
+}
+
+.select--compact select {
+    min-width: 180px;
+}
+
 .empty-state--inline {
     margin: 0;
     border: 1px dashed var(--color-border);

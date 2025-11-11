@@ -14,6 +14,7 @@ def app():
         db.session.remove()
         db.drop_all()
         db.create_all()
+        app.config["ENABLED_FEED_PROVIDERS"] = ("yahoo",)
         default_username = app.config["BASIC_AUTH_USERNAME"]
         default_password = app.config["BASIC_AUTH_PASSWORD"]
         user = db.session.scalar(db.select(User).where(User.username == default_username))

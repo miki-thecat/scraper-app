@@ -8,6 +8,7 @@ from app.services import scraping
 def test_is_allowed_accepts_valid_prefix():
     assert scraping.is_allowed("https://news.yahoo.co.jp/articles/abc123")
     assert scraping.is_allowed("https://news.yahoo.co.jp/pickup/abc123")
+    assert scraping.is_allowed("https://news.nifty.com/article/domestic/gov/12345/")
 
 
 def test_is_allowed_rejects_invalid():

@@ -70,10 +70,11 @@ def test_fetch_latest_articles_merges_and_sorts(app, mocker):
 
         mocker.patch("app.services.news_feed.requests.get", side_effect=fake_get)
 
-        items = news_feed.fetch_latest_articles(limit=5)
+        items = news_feed.fetch_latest_articles(limit=5, provider="yahoo")
 
         assert [item.title for item in items] == ["記事A", "記事B別視点", "記事C"]
         assert items[0].published_at.tzinfo == timezone.utc
+        assert all(item.provider == "yahoo" for item in items)
 
 
 def test_fetch_latest_articles_uses_cache(app, mocker):
@@ -86,8 +87,27 @@ def test_fetch_latest_articles_uses_cache(app, mocker):
             return_value=_mock_response(SAMPLE_FEED, mocker),
         )
 
-        first = news_feed.fetch_latest_articles(limit=2)
-        second = news_feed.fetch_latest_articles(limit=2)
+        first = news_feed.fetch_latest_articles(limit=2, provider="yahoo")
+        second = news_feed.fetch_latest_articles(limit=2, provider="yahoo")
 
         assert mock_get.call_count == 1
         assert first[0].title == second[0].title
+
+
+def test_fetch_latest_articles_supports_multiple_providers(app, mocker):
+    with app.app_context():
+        news_feed.clear_cache()
+        app.config["ENABLED_FEED_PROVIDERS"] = ("nifty",)
+        app.config["NIFTY_FEED_URLS"] = ("https://example.com/nifty.xml",)
+        mocker.patch(
+            "app.services.news_feed.requests.get",
+            return_value=_mock_response(SAMPLE_FEED, mocker),
+        )
+        items = news_feed.fetch_latest_articles(limit=1, provider="nifty")
+        assert items[0].provider == "nifty"
+
+
+def test_enabled_providers_defaults(app):
+    with app.app_context():
+        providers = news_feed.enabled_providers()
+        assert providers[0] == "yahoo"

@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 YAHOO_NEWS_PREFIX: Final[str] = "https://news.yahoo.co.jp/articles/"
 ACCIDENT_PREFIX: Final[str] = "https://news.yahoo.co.jp/pickup/"
+NIFTY_NEWS_PREFIX: Final[str] = "https://news.nifty.com/"
 
 DEFAULT_USER_AGENT: Final[str] = "Mozilla/5.0 (compatible; ScraperApp/1.0; +https://example.com/bot)"
 DEFAULT_REQUEST_TIMEOUT: Final[int] = 10
@@ -32,14 +33,18 @@ class ScrapeError(RuntimeError):
 
 
 def is_allowed(url: str) -> bool:
-    """仕様で許可されたYahooニュースURLかを判定。"""
+    """仕様で許可されたニュースURLかを判定（Yahoo/Nifty）。"""
     if not url:
         return False
     parsed = urlparse(url)
     if parsed.scheme not in {"http", "https"}:
         return False
     normalized = url.strip()
-    return normalized.startswith(YAHOO_NEWS_PREFIX) or normalized.startswith(ACCIDENT_PREFIX)
+    return (
+        normalized.startswith(YAHOO_NEWS_PREFIX)
+        or normalized.startswith(ACCIDENT_PREFIX)
+        or normalized.startswith(NIFTY_NEWS_PREFIX)
+    )
 
 
 def _build_session() -> requests.Session:
@@ -59,7 +64,7 @@ def _build_session() -> requests.Session:
 
 def fetch(url: str) -> Response:
     if not is_allowed(url):
-        raise ScrapeError("許可されたYahoo!ニュースのURLではありません。")
+        raise ScrapeError("許可されたニュースサイト（Yahoo/Nifty）のURLではありません。")
 
     session = _build_session()
     timeout = _config_get("REQUEST_TIMEOUT", DEFAULT_REQUEST_TIMEOUT)

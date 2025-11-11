@@ -1,4 +1,4 @@
-"""Yahoo!ニュースのRSSから最新記事を取得するユーティリティ。"""
+"""Yahoo!/ニフティのRSSから最新記事を取得するユーティリティ。"""
 from __future__ import annotations
 
 import logging
@@ -6,13 +6,45 @@ import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Iterable, List
+from typing import Iterable, List, Sequence
 
 import requests
 from dateutil import parser as dateparser
 from flask import current_app
 
 logger = logging.getLogger(__name__)
+
+_DEFAULT_PROVIDERS: tuple[str, ...] = ("yahoo", "nifty")
+
+_PROVIDER_SETTINGS = {
+    "yahoo": {
+        "config_key": "NEWS_FEED_URLS",
+        "label": "Yahoo!ニュース",
+        "defaults": (
+            "https://news.yahoo.co.jp/rss/topics/top-picks.xml",
+            "https://news.yahoo.co.jp/rss/topics/domestic.xml",
+            "https://news.yahoo.co.jp/rss/topics/world.xml",
+            "https://news.yahoo.co.jp/rss/topics/business.xml",
+            "https://news.yahoo.co.jp/rss/topics/entertainment.xml",
+            "https://news.yahoo.co.jp/rss/topics/sports.xml",
+            "https://news.yahoo.co.jp/rss/topics/it.xml",
+            "https://news.yahoo.co.jp/rss/topics/science.xml",
+            "https://news.yahoo.co.jp/rss/topics/local.xml",
+        ),
+    },
+    "nifty": {
+        "config_key": "NIFTY_FEED_URLS",
+        "label": "ニフティニュース",
+        "defaults": (
+            "https://news.nifty.com/rss/domestic.xml",
+            "https://news.nifty.com/rss/world.xml",
+            "https://news.nifty.com/rss/economy.xml",
+            "https://news.nifty.com/rss/it.xml",
+            "https://news.nifty.com/rss/sports.xml",
+            "https://news.nifty.com/rss/entertainment.xml",
+        ),
+    },
+}
 
 
 @dataclass(slots=True)
@@ -23,6 +55,7 @@ class NewsFeedItem:
     url: str
     published_at: datetime | None
     source: str
+    provider: str
 
 
 class NewsFeedError(RuntimeError):
@@ -39,36 +72,30 @@ def clear_cache() -> None:
     _CACHE.clear()
 
 
-def _feed_urls() -> Iterable[str]:
-    cfg_urls = current_app.config.get(
-        "NEWS_FEED_URLS",
-        (
-            # 主要カテゴリ（9種類 × 8件 = 72件）
-            "https://news.yahoo.co.jp/rss/topics/top-picks.xml",
-            "https://news.yahoo.co.jp/rss/topics/domestic.xml",
-            "https://news.yahoo.co.jp/rss/topics/world.xml",
-            "https://news.yahoo.co.jp/rss/topics/business.xml",
-            "https://news.yahoo.co.jp/rss/topics/entertainment.xml",
-            "https://news.yahoo.co.jp/rss/topics/sports.xml",
-            "https://news.yahoo.co.jp/rss/topics/it.xml",
-            "https://news.yahoo.co.jp/rss/topics/science.xml",
-            "https://news.yahoo.co.jp/rss/topics/local.xml",
-            # メディア別フィード（約590件）
-            "https://news.yahoo.co.jp/rss/media/jprime/all.xml",
-            "https://news.yahoo.co.jp/rss/media/nksports/all.xml",
-            "https://news.yahoo.co.jp/rss/media/natalien/all.xml",
-            "https://news.yahoo.co.jp/rss/media/natalieo/all.xml",
-            "https://news.yahoo.co.jp/rss/media/tospoweb/all.xml",
-            "https://news.yahoo.co.jp/rss/media/baseballk/all.xml",
-            "https://news.yahoo.co.jp/rss/media/soccerk/all.xml",
-            "https://news.yahoo.co.jp/rss/media/bfj/all.xml",
-            "https://news.yahoo.co.jp/rss/media/bengocom/all.xml",
-            "https://news.yahoo.co.jp/rss/media/zdn_mkt/all.xml",
-            "https://news.yahoo.co.jp/rss/media/bcn/all.xml",
-            "https://news.yahoo.co.jp/rss/media/impress/all.xml",
-        ),
-    )
-    for url in cfg_urls:
+def provider_label(provider: str) -> str:
+    settings = _PROVIDER_SETTINGS.get(provider.lower())
+    if not settings:
+        return provider.title()
+    return settings["label"]
+
+
+def enabled_providers() -> tuple[str, ...]:
+    configured: Sequence[str] = current_app.config.get("ENABLED_FEED_PROVIDERS") or _DEFAULT_PROVIDERS
+    filtered = tuple(p for p in (slug.lower() for slug in configured) if p in _PROVIDER_SETTINGS)
+    return filtered or ("yahoo",)
+
+
+def _feed_urls(provider: str) -> Iterable[str]:
+    provider = provider.lower()
+    settings = _PROVIDER_SETTINGS.get(provider)
+    if not settings:
+        return ()
+    config_value = current_app.config.get(settings["config_key"])
+    if config_value:
+        urls = config_value
+    else:
+        urls = settings.get("defaults", ())
+    for url in urls:
         if url:
             yield url
 
@@ -77,14 +104,14 @@ def _request_timeout() -> int:
     return int(current_app.config.get("NEWS_FEED_TIMEOUT", 5))
 
 
-def fetch_latest_articles(limit: int = 6) -> list[NewsFeedItem]:
-    """Yahoo!ニュースのRSSから最新記事をまとめて返す。
+def fetch_latest_articles(limit: int = 6, provider: str = "yahoo") -> list[NewsFeedItem]:
+    """指定したニュースプロバイダのRSSから最新記事をまとめて返す。"""
 
-    キャッシュ（5分）を利用して無駄なリクエストを避ける。
-    取得できなかった場合は空リストを返す。
-    """
+    provider = provider.lower()
+    if provider not in _PROVIDER_SETTINGS:
+        raise NewsFeedError(f"Unknown provider: {provider}")
 
-    cache_key = f"default:{limit}"
+    cache_key = f"{provider}:{limit}"
     cached = _CACHE.get(cache_key)
     now = time.time()
     if cached and now - cached[0] < _CACHE_TTL:
@@ -92,7 +119,7 @@ def fetch_latest_articles(limit: int = 6) -> list[NewsFeedItem]:
 
     articles: dict[str, NewsFeedItem] = {}
 
-    for url in _feed_urls():
+    for url in _feed_urls(provider):
         try:
             response = requests.get(url, timeout=_request_timeout())
             response.raise_for_status()
@@ -107,7 +134,7 @@ def fetch_latest_articles(limit: int = 6) -> list[NewsFeedItem]:
             continue
 
         channel = root.find("channel")
-        channel_title = (channel.findtext("title") if channel is not None else "Yahoo!ニュース").strip()
+        channel_title = (channel.findtext("title") if channel is not None else provider_label(provider)).strip()
 
         if channel is None:
             logger.debug("RSS feed %s had no channel element", url)
@@ -139,7 +166,8 @@ def fetch_latest_articles(limit: int = 6) -> list[NewsFeedItem]:
                 title=title,
                 url=link,
                 published_at=published_at,
-                source=channel_title or "Yahoo!ニュース",
+                source=channel_title or provider_label(provider),
+                provider=provider,
             )
             # 同じURLは最新のものを優先
             articles[link] = article

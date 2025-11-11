@@ -78,45 +78,51 @@
 <section class="surface surface--latest">
     <div class="surface__header">
         <div>
-            <h2>最新のYahoo!ニュースから選ぶ</h2>
-            <p class="surface__description">公式RSSを自動取得。ワンクリックでスクレイプとAI評価を実行できます。</p>
+            <h2>最新ニュースから選ぶ</h2>
+            <p class="surface__description">Yahoo!ニュースとニフティニュースを横断的に取得。ワンクリックでスクレイプとAI評価を実行できます。</p>
         </div>
         <span class="surface__hint">STEP 2</span>
     </div>
 
-    {% if latest_articles %}
-    <div class="latest-feed">
-        {% for item in latest_articles %}
-        <article class="latest-feed__item">
-            <div class="latest-feed__meta">
-                <h3 class="latest-feed__title">{{ item.title }}</h3>
-                <div class="latest-feed__info">
-                    <span class="latest-feed__source">{{ item.source }}</span>
-                    {% if item.published_display %}
-                    <time datetime="{{ item.published_iso }}">{{ item.published_display }}</time>
-                    {% endif %}
+    {% for provider in feed_providers %}
+    {% set provider_articles = latest_articles_group.get(provider.slug, []) %}
+    <div class="latest-feed__group">
+        <div class="latest-feed__group-header">
+            <h3>{{ provider.label }}</h3>
+            <a class="chip chip--ghost" href="{{ url_for('main.latest_feed', source=provider.slug) }}">一覧を見る →</a>
+        </div>
+
+        {% if provider_articles %}
+        <div class="latest-feed">
+            {% for item in provider_articles %}
+            <article class="latest-feed__item">
+                <div class="latest-feed__meta">
+                    <h4 class="latest-feed__title">{{ item.title }}</h4>
+                    <div class="latest-feed__info">
+                        <span class="latest-feed__source">{{ item.source }}</span>
+                        {% if item.published_display %}
+                        <time datetime="{{ item.published_iso }}">{{ item.published_display }}</time>
+                        {% endif %}
+                    </div>
                 </div>
-            </div>
-            <div class="latest-feed__actions">
-                <a class="chip chip--ghost" href="{{ item.url }}" target="_blank" rel="noopener noreferrer">元記事</a>
-                <form method="post" action="{{ url_for('main.scrape') }}">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="url" value="{{ item.url }}">
-                    <button class="button button--primary" type="submit">AI解析する</button>
-                </form>
-            </div>
-        </article>
-        {% endfor %}
+                <div class="latest-feed__actions">
+                    <a class="chip chip--ghost" href="{{ item.url }}" target="_blank" rel="noopener noreferrer">元記事</a>
+                    <form method="post" action="{{ url_for('main.scrape') }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="url" value="{{ item.url }}">
+                        <button class="button button--primary" type="submit">AI解析する</button>
+                    </form>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="latest-feed__empty">
+            <p>{{ provider.label }} の記事を取得できませんでした。</p>
+        </div>
+        {% endif %}
     </div>
-    <div class="surface__footer" style="margin-top: 1.5rem; text-align: center;">
-        <a class="button button--secondary" href="{{ url_for('main.latest_feed') }}">もっと見る（検索＆ページ機能付き）→</a>
-    </div>
-    {% else %}
-    <div class="empty-state empty-state--inline">
-        <h3>最新記事を取得できませんでした</h3>
-        <p>ネットワークに問題があるか、Yahoo!ニュースRSSが一時停止しています。</p>
-    </div>
-    {% endif %}
+    {% endfor %}
 </section>
 
 <section class="surface">

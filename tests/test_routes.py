@@ -42,6 +42,7 @@ def test_index_renders_latest_feed(app, client, auth_header, mocker):
             url="https://news.yahoo.co.jp/articles/latest",
             published_at=datetime.now(timezone.utc),
             source="Yahoo!ニュース - テック",
+            provider="yahoo",
         )
     ]
 
@@ -49,7 +50,7 @@ def test_index_renders_latest_feed(app, client, auth_header, mocker):
 
     resp = client.get("/", headers=auth_header)
     text = resp.get_data(as_text=True)
-    assert "最新のYahoo!ニュースから選ぶ" in text
+    assert "最新ニュースから選ぶ" in text
     assert "最新記事" in text
     assert "AI解析する" in text
 
@@ -389,6 +390,7 @@ def test_latest_feed_page_without_search(app, client, auth_header, mocker):
             url=f"https://news.yahoo.co.jp/articles/feed-{i}",
             published_at=datetime.now(timezone.utc),
             source="Yahoo!ニュース",
+            provider="yahoo",
         )
         for i in range(30)
     ]
@@ -398,7 +400,7 @@ def test_latest_feed_page_without_search(app, client, auth_header, mocker):
     resp = client.get("/latest-feed", headers=auth_header)
     assert resp.status_code == 200
     text = resp.get_data(as_text=True)
-    assert "最新のYahoo!ニュースから選ぶ" in text
+    assert "最新ニュースから選ぶ" in text
     assert "記事0" in text
     assert "1 / 2" in text  # Page 1 of 2
 
@@ -410,12 +412,14 @@ def test_latest_feed_page_with_search(app, client, auth_header, mocker):
             url="https://news.yahoo.co.jp/articles/economy-1",
             published_at=datetime.now(timezone.utc),
             source="Yahoo!ニュース - 経済",
+            provider="yahoo",
         ),
         news_feed.NewsFeedItem(
             title="スポーツニュース",
             url="https://news.yahoo.co.jp/articles/sports-1",
             published_at=datetime.now(timezone.utc),
             source="Yahoo!ニュース - スポーツ",
+            provider="yahoo",
         ),
     ]
 
@@ -435,6 +439,7 @@ def test_latest_feed_page_pagination(app, client, auth_header, mocker):
             url=f"https://news.yahoo.co.jp/articles/feed-{i}",
             published_at=datetime.now(timezone.utc),
             source="Yahoo!ニュース",
+            provider="yahoo",
         )
         for i in range(25)
     ]
@@ -447,6 +452,30 @@ def test_latest_feed_page_pagination(app, client, auth_header, mocker):
     assert "記事20" in text
     assert "記事24" in text
     assert "2 / 2" in text
+
+
+def test_latest_feed_source_filter(app, client, auth_header, mocker):
+    app.config["ENABLED_FEED_PROVIDERS"] = ("yahoo", "nifty")
+    feed_items = [
+        news_feed.NewsFeedItem(
+            title="ニフティ記事",
+            url="https://news.nifty.com/article-1",
+            published_at=datetime.now(timezone.utc),
+            source="ニフティ",
+            provider="nifty",
+        )
+    ]
+
+    def fake_fetch(limit, provider):
+        assert provider == "nifty"
+        return feed_items
+
+    mocker.patch("app.routes.news_feed.fetch_latest_articles", side_effect=fake_fetch)
+
+    resp = client.get("/latest-feed?source=nifty", headers=auth_header)
+    assert resp.status_code == 200
+    text = resp.get_data(as_text=True)
+    assert "ニフティ記事" in text
 
 
 # ========================================

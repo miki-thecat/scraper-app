@@ -85,6 +85,26 @@ class Config:
         if token.strip()
     )
     NEWS_FEED_TIMEOUT = int(os.getenv("NEWS_FEED_TIMEOUT", "5"))
+    NIFTY_FEED_URLS = tuple(
+        token.strip()
+        for token in os.getenv(
+            "NIFTY_FEED_URLS",
+            "https://news.nifty.com/rss/domestic.xml,"
+            "https://news.nifty.com/rss/world.xml,"
+            "https://news.nifty.com/rss/economy.xml,"
+            "https://news.nifty.com/rss/entertainment.xml,"
+            "https://news.nifty.com/rss/it.xml,"
+            "https://news.nifty.com/rss/sports.xml,"
+            "https://news.nifty.com/rss/social.xml,"
+            "https://news.nifty.com/rss/science.xml",
+        ).split(",")
+        if token.strip()
+    )
+    ENABLED_FEED_PROVIDERS = tuple(
+        slug.strip().lower()
+        for slug in os.getenv("ENABLED_FEED_PROVIDERS", "yahoo,nifty").split(",")
+        if slug.strip()
+    )
 
     # OpenAI / AI settings
     OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")

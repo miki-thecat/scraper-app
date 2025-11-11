@@ -6,10 +6,10 @@
 <section class="surface surface--primary">
     <div class="surface__header">
         <div>
-            <h2>最新のYahoo!ニュースから選ぶ</h2>
-            <p class="surface__description">公式RSSから最新{{ pagination.total }}件を取得。キーワード検索とページ機能で目的の記事を見つけやすくなりました。</p>
+            <h2>最新ニュースから選ぶ</h2>
+            <p class="surface__description">Yahoo!ニュース／ニフティニュースを横断し、{{ pagination.total }}件の最新記事を高速に検索できます。</p>
         </div>
-        <span class="surface__hint">RSS FEED</span>
+        <span class="surface__hint">{{ selected_provider.label }}</span>
     </div>
 
     <form class="search-form search-form--simple" method="get" action="{{ url_for('main.latest_feed') }}">
@@ -17,10 +17,22 @@
             <label for="q" class="sr-only">キーワード検索</label>
             <input id="q" name="q" type="search" value="{{ search_query }}" placeholder="タイトルやソースで検索...">
         </div>
+        <div class="search-form__field search-form__field--select">
+            <label for="source" class="sr-only">ニュースソース</label>
+            <div class="select select--compact">
+                <select id="source" name="source">
+                    {% for provider in feed_providers %}
+                    <option value="{{ provider.slug }}" {% if provider.slug == selected_provider.slug %}selected{% endif %}>
+                        {{ provider.label }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
         <div class="search-form__actions">
             <button class="button button--primary" type="submit">検索</button>
             {% if search_query %}
-            <a class="button button--ghost" href="{{ url_for('main.latest_feed') }}">クリア</a>
+            <a class="button button--ghost" href="{{ url_for('main.latest_feed', source=selected_provider.slug) }}">クリア</a>
             {% endif %}
         </div>
     </form>
@@ -32,7 +44,7 @@
             <div class="latest-feed__meta">
                 <h3 class="latest-feed__title">{{ item.title }}</h3>
                 <div class="latest-feed__info">
-                    <span class="latest-feed__source">{{ item.source }}</span>
+                    <span class="latest-feed__source">{{ item.source }} / {{ item.provider_label }}</span>
                     {% if item.published_display %}
                     <time datetime="{{ item.published_iso }}">{{ item.published_display }}</time>
                     {% endif %}
