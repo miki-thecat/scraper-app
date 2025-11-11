@@ -13,7 +13,7 @@ from app.models.article import Article, InferenceResult
 from app.models.db import db
 
 from . import ai as ai_service
-from . import parsing, risk, scraping
+from . import nifty_news, parsing, risk, scraping
 
 
 @dataclass(slots=True)
@@ -138,12 +138,26 @@ def ingest_article(
     run_ai: bool = True,
     force_ai: bool = False,
 ) -> ArticleIngestionResult:
-    """Fetch, parse, persist, and optionally run AI for a Yahoo!ニュース article."""
+    """Fetch, parse, persist, and optionally run AI for a news article (Yahoo!/Nifty)."""
 
     if not url:
         raise ArticleIngestionError("URLを指定してください。", status_code=400)
-    if not scraping.is_allowed(url):
-        raise ArticleIngestionError("Yahoo!ニュースの記事URLのみ対応しています。", status_code=400)
+    
+    # マルチソース対応: URLに応じてパーサーを選択
+    if nifty_news.is_nifty_news_url(url):
+        source = "nifty_news"
+        is_valid = True
+    elif scraping.is_allowed(url):
+        source = "yahoo_news"
+        is_valid = True
+    else:
+        is_valid = False
+    
+    if not is_valid:
+        raise ArticleIngestionError(
+            "対応していないニュースサイトです。Yahoo!ニュースまたは@niftyニュースの記事URLを指定してください。",
+            status_code=400
+        )
 
     article = db.session.scalar(select(Article).where(Article.url == url))
     needs_fetch = force or article is None
@@ -153,7 +167,11 @@ def ingest_article(
     if needs_fetch:
         try:
             response = scraping.fetch(url)
-            parsed = parsing.parse_article(response.url, response.text)
+            # ソースに応じてパーサーを選択
+            if source == "nifty_news":
+                parsed = nifty_news.NiftyNewsParser.parse_article(response.text, response.url)
+            else:
+                parsed = parsing.parse_article(response.url, response.text)
         except scraping.ScrapeError as exc:
             db.session.rollback()
             current_app.logger.warning("Scraping failed for %s: %s", url, exc)

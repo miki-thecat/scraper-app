@@ -48,6 +48,10 @@ class Config:
         "Mozilla/5.0 (compatible; ScraperApp/1.0; +https://example.com/bot)",
     )
     RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))
+    
+    # News sources
+    YAHOO_NEWS_URL_PREFIX = "https://news.yahoo.co.jp/articles/"
+    NIFTY_NEWS_URL_PREFIX = "https://news.nifty.com/topics/"
 
     # Feed settings
     NEWS_FEED_URLS = tuple(
