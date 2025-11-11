@@ -1,0 +1,148 @@
+name: Automated Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  code-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install ruff black isort radon vulture bandit safety
+      
+      - name: Run Ruff
+        id: ruff
+        continue-on-error: true
+        run: |
+          ruff check . --output-format=json > ruff-results.json || true
+          echo "ruff_exit_code=$?" >> $GITHUB_OUTPUT
+      
+      - name: Run Black check
+        id: black
+        continue-on-error: true
+        run: |
+          black --check . > black-results.txt 2>&1 || true
+          echo "black_exit_code=$?" >> $GITHUB_OUTPUT
+      
+      - name: Run isort check
+        id: isort
+        continue-on-error: true
+        run: |
+          isort --check-only . > isort-results.txt 2>&1 || true
+          echo "isort_exit_code=$?" >> $GITHUB_OUTPUT
+      
+      - name: Calculate code complexity
+        id: complexity
+        continue-on-error: true
+        run: |
+          radon cc app/ -a -nb > complexity-results.txt 2>&1 || true
+          radon mi app/ > maintainability-results.txt 2>&1 || true
+      
+      - name: Check for dead code
+        id: dead_code
+        continue-on-error: true
+        run: |
+          vulture app/ > dead-code-results.txt 2>&1 || true
+      
+      - name: Security scan with Bandit
+        id: bandit
+        continue-on-error: true
+        run: |
+          bandit -r app/ -f json -o bandit-results.json || true
+      
+      - name: Check for known vulnerabilities
+        id: safety
+        continue-on-error: true
+        run: |
+          safety check --json > safety-results.json 2>&1 || true
+      
+      - name: Generate review comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            let comment = '## 🤖 Automated Code Review\n\n';
+            
+            // Ruff results
+            try {
+              const ruffData = JSON.parse(fs.readFileSync('ruff-results.json', 'utf8'));
+              if (ruffData.length > 0) {
+                comment += '### ⚠️ Ruff Issues\n\n';
+                comment += `Found ${ruffData.length} issue(s):\n\n`;
+                ruffData.slice(0, 5).forEach(issue => {
+                  comment += `- **${issue.code}**: ${issue.message} (${issue.location.file}:${issue.location.row})\n`;
+                });
+                if (ruffData.length > 5) {
+                  comment += `\n... and ${ruffData.length - 5} more issues.\n`;
+                }
+              } else {
+                comment += '### ✅ Ruff: No issues found\n\n';
+              }
+            } catch (e) {
+              comment += '### ✅ Ruff: No issues found\n\n';
+            }
+            
+            // Complexity
+            try {
+              const complexity = fs.readFileSync('complexity-results.txt', 'utf8');
+              const maintainability = fs.readFileSync('maintainability-results.txt', 'utf8');
+              comment += '### 📊 Code Complexity\n\n';
+              comment += '```\n' + complexity.split('\n').slice(0, 10).join('\n') + '\n```\n\n';
+            } catch (e) {}
+            
+            // Security
+            try {
+              const banditData = JSON.parse(fs.readFileSync('bandit-results.json', 'utf8'));
+              if (banditData.results && banditData.results.length > 0) {
+                comment += '### 🔒 Security Issues\n\n';
+                banditData.results.slice(0, 3).forEach(issue => {
+                  comment += `- **${issue.issue_severity}**: ${issue.issue_text} (${issue.filename}:${issue.line_number})\n`;
+                });
+              } else {
+                comment += '### ✅ Security: No issues found\n\n';
+              }
+            } catch (e) {
+              comment += '### ✅ Security: No issues found\n\n';
+            }
+            
+            // Overall score
+            comment += '\n---\n\n';
+            comment += '💡 **Tips**:\n';
+            comment += '- Keep functions under 15 lines\n';
+            comment += '- Cyclomatic complexity should be < 10\n';
+            comment += '- Maintainability index should be > 65\n';
+            
+            // Post comment
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: comment
+            });
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-review-results
+          path: |
+            *-results.*
+          retention-days: 7
