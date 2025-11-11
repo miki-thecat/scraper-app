@@ -1,6 +1,6 @@
 {% extends 'layout.html' %}
 
-{% block title %}最新Yahoo!ニュース - スクレイピングアプリケーション{% endblock %}
+{% block title %}最新ニュース - {{ selected_provider.label }} - スクレイピングアプリケーション{% endblock %}
 
 {% block content %}
 <section class="surface surface--primary">
@@ -66,12 +66,12 @@
         {% set prev_page = pagination.page - 1 %}
         {% set next_page = pagination.page + 1 %}
         <a class="pagination__link{% if not pagination.has_prev %} is-disabled{% endif %}" 
-           href="{{ url_for('main.latest_feed', page=prev_page, q=search_query or None) if pagination.has_prev else '#' }}">
+           href="{{ url_for('main.latest_feed', page=prev_page, q=search_query or None, source=selected_provider.slug) if pagination.has_prev else '#' }}">
            &larr; 前へ
         </a>
         <span class="pagination__info">{{ pagination.page }} / {{ pagination.pages }}</span>
         <a class="pagination__link{% if not pagination.has_next %} is-disabled{% endif %}" 
-           href="{{ url_for('main.latest_feed', page=next_page, q=search_query or None) if pagination.has_next else '#' }}">
+           href="{{ url_for('main.latest_feed', page=next_page, q=search_query or None, source=selected_provider.slug) if pagination.has_next else '#' }}">
            次へ &rarr;
         </a>
     </nav>
@@ -82,7 +82,7 @@
         <p>「{{ search_query }}」に一致する記事がありません。検索キーワードを変更してみてください。</p>
         <a class="button button--secondary" href="{{ url_for('main.latest_feed') }}">すべての記事を表示</a>
         {% else %}
-        <p>ネットワークに問題があるか、Yahoo!ニュースRSSが一時停止しています。</p>
+        <p>ネットワークに問題があるか、{{ selected_provider.label }}のRSSが一時停止しています。</p>
         {% endif %}
     </div>
     {% endif %}

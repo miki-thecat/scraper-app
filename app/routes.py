@@ -505,7 +505,12 @@ def latest_feed():
         selected_provider = providers[0]
 
     # Fetch more articles to handle filtering (increased limit for more sources)
-    all_items = news_feed.fetch_latest_articles(limit=500, provider=selected_provider)
+    try:
+        all_items = news_feed.fetch_latest_articles(limit=500, provider=selected_provider)
+        current_app.logger.info(f"Fetched {len(all_items)} items from {selected_provider}")
+    except Exception as e:
+        current_app.logger.error(f"Error fetching from {selected_provider}: {e}")
+        all_items = []
 
     # Filter by search query
     filtered_items = []
