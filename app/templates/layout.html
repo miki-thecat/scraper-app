@@ -22,7 +22,7 @@
                 {% if is_authenticated %}
                 <span class="app-topbar__user">{{ auth_username or 'ユーザー' }}</span>
                 <form method="post" action="{{ url_for('auth.logout') }}">
-                    {{ csrf_token() }}
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button class="button button--ghost button--compact" type="submit">ログアウト</button>
                 </form>
                 {% else %}

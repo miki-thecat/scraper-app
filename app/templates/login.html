@@ -18,7 +18,7 @@
             <p>設定済みのユーザー名とパスワードでログインしてください。</p>
         </div>
         <form method="post" action="{{ url_for('auth.login_post') }}" class="auth-form">
-            {{ csrf_token() }}
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             {% if next_url %}
             <input type="hidden" name="next" value="{{ next_url }}">
             {% endif %}
@@ -40,8 +40,12 @@
             <p>
                 <strong>ヒント:</strong> 環境変数 <code>BASIC_AUTH_USERNAME</code> / <code>BASIC_AUTH_PASSWORD</code> を変更すると認証情報を更新できます。
             </p>
+            <p>
+                アカウントをお持ちでない場合は
+                <a href="{{ url_for('auth.register') }}">こちらから登録</a>
+                してください。
+            </p>
         </div>
     </div>
 </section>
 {% endblock %}
-

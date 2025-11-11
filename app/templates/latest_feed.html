@@ -41,7 +41,7 @@
             <div class="latest-feed__actions">
                 <a class="chip chip--ghost" href="{{ item.url }}" target="_blank" rel="noopener noreferrer">元記事</a>
                 <form method="post" action="{{ url_for('main.scrape') }}">
-                    {{ csrf_token() }}
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="url" value="{{ item.url }}">
                     <button class="button button--primary" type="submit">AI解析する</button>
                 </form>

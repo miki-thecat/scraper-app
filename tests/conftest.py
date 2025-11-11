@@ -4,6 +4,7 @@ import pytest
 from app import create_app
 from app.config import TestConfig
 from app.models.db import db
+from app.models.user import User
 
 
 @pytest.fixture
@@ -13,6 +14,14 @@ def app():
         db.session.remove()
         db.drop_all()
         db.create_all()
+        default_username = app.config["BASIC_AUTH_USERNAME"]
+        default_password = app.config["BASIC_AUTH_PASSWORD"]
+        user = db.session.scalar(db.select(User).where(User.username == default_username))
+        if user is None:
+            user = User(username=default_username)
+            user.set_password(default_password)
+            db.session.add(user)
+            db.session.commit()
     yield app
 
 

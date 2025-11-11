@@ -27,6 +27,7 @@ from flask import (
 from .auth import session_manager
 from .models.article import Article
 from .models.db import db
+from .models.user import User
 from .services import analytics, news_feed, risk, scraping
 from .services import articles as article_service
 
@@ -54,10 +55,18 @@ def _check_auth(header: str | None) -> bool:
     except Exception:
         return False
 
-    return (
-        username == current_app.config["BASIC_AUTH_USERNAME"]
-        and password == current_app.config["BASIC_AUTH_PASSWORD"]
-    )
+    return _validate_user_credentials(username, password)
+
+
+def _validate_user_credentials(username: str, password: str) -> bool:
+    if not username or not password:
+        return False
+    user = db.session.scalar(db.select(User).where(User.username == username))
+    if user and user.verify_password(password):
+        return True
+    expected_username = current_app.config.get("BASIC_AUTH_USERNAME", "")
+    expected_password = current_app.config.get("BASIC_AUTH_PASSWORD", "")
+    return username == expected_username and password == expected_password
 
 
 def requires_basic_auth(view):

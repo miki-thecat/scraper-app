@@ -7,11 +7,11 @@ from typing import DefaultDict
 from flask import Flask, jsonify, request
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
+from sqlalchemy import inspect
 
 from .config import Config
 from .models.db import db, init_db
 from .auth import session_manager
-
 csrf = CSRFProtect()
 
 
@@ -40,6 +40,8 @@ def create_app(config_class: type[Config] | None = None) -> Flask:
     from .cli import register_cli_commands
 
     register_cli_commands(app)
+
+    _ensure_default_user(app)
 
     _init_rate_limiter(app)
     _init_security_headers(app)
@@ -151,3 +153,29 @@ def _init_csrf_error_handler(app: Flask) -> None:
             'error': 'セキュリティ上の理由により、リクエストが拒否されました。',
             'details': e.description
         }), 400
+
+
+def _ensure_default_user(app: Flask) -> None:
+    """Create a default user based on BASIC_AUTH_* if not present."""
+    from .models.user import User  # local import to avoid circular
+
+    username = app.config.get("BASIC_AUTH_USERNAME")
+    password = app.config.get("BASIC_AUTH_PASSWORD")
+    if not username or not password:
+        return
+
+    with app.app_context():
+        try:
+            inspector = inspect(db.engine)
+            if "users" not in inspector.get_table_names():
+                return
+        except Exception:  # pragma: no cover - during migrations/tests before tables exist
+            return
+
+        exists = db.session.scalar(db.select(User).where(User.username == username))
+        if exists:
+            return
+        user = User(username=username)
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()

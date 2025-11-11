@@ -2,6 +2,20 @@ from __future__ import annotations
 
 import os
 from datetime import timedelta
+from pathlib import Path
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def _resolve_database_uri(value: str) -> str:
+    if not value.startswith("sqlite:///"):
+        return value
+    path = value.replace("sqlite:///", "", 1)
+    if os.path.isabs(path):
+        return value
+    abs_path = BASE_DIR.joinpath(path).resolve()
+    return f"sqlite:///{abs_path}"
 
 
 class Config:
@@ -10,8 +24,8 @@ class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "change_me_secret")
 
     # Database
-    SQLALCHEMY_DATABASE_URI = os.getenv(
-        "DATABASE_URL", os.getenv("DATABASE_URI", "sqlite:///local.db")
+    SQLALCHEMY_DATABASE_URI = _resolve_database_uri(
+        os.getenv("DATABASE_URL", os.getenv("DATABASE_URI", "sqlite:///local.db"))
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}

@@ -1,0 +1,46 @@
+{% extends 'layout.html' %}
+
+{% block title %}新規登録 - スクレイピングアプリケーション{% endblock %}
+
+{% block hero %}
+<div class="hero__inner hero__inner--compact">
+    <div class="hero__badge">Create Account</div>
+    <h1>アカウントを作成</h1>
+    <p class="tagline">スクレイピングとAI分析を利用するための個別アカウントを登録できます。</p>
+    <a class="chip chip--ghost" href="{{ url_for('auth.login') }}">既にアカウントをお持ちですか？ログインへ →</a>
+</div>
+{% endblock %}
+
+{% block content %}
+<section class="auth-section">
+    <div class="auth-card">
+        <div class="auth-card__header">
+            <h2>ユーザー登録</h2>
+            <p>ユーザー名とパスワードを設定してください。登録後すぐにログイン状態になります。</p>
+        </div>
+        <form method="post" action="{{ url_for('auth.register_post') }}" class="auth-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {% if next_url %}
+            <input type="hidden" name="next" value="{{ next_url }}">
+            {% endif %}
+            <div class="auth-form__field">
+                <label for="username">ユーザー名</label>
+                <input id="username" name="username" type="text" autocomplete="username" required placeholder="your-name">
+            </div>
+            <div class="auth-form__field">
+                <label for="password">パスワード</label>
+                <div class="auth-form__password">
+                    <input id="password" name="password" type="password" autocomplete="new-password" required placeholder="••••••••">
+                </div>
+            </div>
+            <div class="auth-form__field">
+                <label for="confirm_password">パスワード（確認）</label>
+                <input id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" required placeholder="もう一度入力">
+            </div>
+            <div class="auth-form__actions">
+                <button class="button button--primary button--full" type="submit">登録してログイン</button>
+            </div>
+        </form>
+    </div>
+</section>
+{% endblock %}
