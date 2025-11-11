@@ -8,9 +8,8 @@ from functools import wraps
 from datetime import datetime, timezone
 from typing import Any
 
-from dateutil import parser as dateparser, tz
-from sqlalchemy import or_, select
-from sqlalchemy.orm import aliased
+from dateutil import tz
+from sqlalchemy import select
 
 from flask import (
     Blueprint,
@@ -26,10 +25,10 @@ from flask import (
 )
 
 from .auth import session_manager
-from .models.article import Article, InferenceResult
+from .models.article import Article
 from .models.db import db
-from .services import ai as ai_service
-from .services import analytics, news_feed, parsing, risk, scraping
+from .services import analytics, news_feed, risk, scraping
+from .services import articles as article_service
 
 bp = Blueprint("main", __name__)
 api_bp = Blueprint("api", __name__, url_prefix="/api")
@@ -87,104 +86,6 @@ def requires_basic_auth(view):
     return wrapped
 
 
-def _parse_date(value: str | None) -> datetime | None:
-    if not value:
-        return None
-    try:
-        return dateparser.parse(value)
-    except (ValueError, TypeError, OverflowError):
-        return None
-
-
-def _article_select(
-    search_query: str,
-    start_date: datetime | None,
-    end_date: datetime | None,
-    sort_key: str = "published_at",
-    order: str = "desc",
-    risk_band: risk.RiskBand | None = None,
-):
-    stmt = select(Article)
-
-    if search_query:
-        like_pattern = f"%{search_query}%"
-        stmt = stmt.where(
-            or_(
-                Article.title.ilike(like_pattern),
-                Article.body.ilike(like_pattern),
-            )
-        )
-
-    if start_date is not None:
-        stmt = stmt.where(Article.published_at >= start_date)
-    if end_date is not None:
-        stmt = stmt.where(Article.published_at <= end_date)
-
-    if risk_band is not None:
-        latest = aliased(InferenceResult)
-        latest_subquery = (
-            select(InferenceResult.id)
-            .where(InferenceResult.article_id == Article.id)
-            .order_by(InferenceResult.created_at.desc(), InferenceResult.id.desc())
-            .limit(1)
-            .scalar_subquery()
-        )
-        stmt = stmt.join(latest, latest.id == latest_subquery)
-        stmt = stmt.where(latest.risk_score >= risk_band.min_score)
-        if risk_band.max_score is not None:
-            stmt = stmt.where(latest.risk_score <= risk_band.max_score)
-
-    sort_columns = {
-        "published_at": Article.published_at,
-        "created_at": Article.created_at,
-        "title": Article.title,
-    }
-    column = sort_columns.get(sort_key, Article.published_at)
-    direction = column.desc() if order == "desc" else column.asc()
-
-    return stmt.order_by(direction, Article.created_at.desc())
-
-
-def _article_to_dict(article: Article) -> dict[str, Any]:
-    history = [
-        {
-            "id": record.id,
-            "risk_score": record.risk_score,
-            "risk_level": _risk_level_payload(record.risk_score),
-            "summary": record.summary,
-            "model": record.model,
-            "prompt_version": record.prompt_version,
-            "created_at": record.created_at.isoformat() if record.created_at else None,
-        }
-        for record in article.inferences
-    ]
-    return {
-        "id": article.id,
-        "url": article.url,
-        "title": article.title,
-        "published_at": article.published_at.isoformat() if article.published_at else None,
-        "body": article.body,
-        "created_at": article.created_at.isoformat() if article.created_at else None,
-        "inference": history[0] if history else None,
-        "inference_history": history,
-        "risk_level": _risk_level_payload(article.latest_inference.risk_score) if article.latest_inference else None,
-    }
-
-
-def _risk_level_payload(score: int | None) -> dict[str, Any] | None:
-    level = risk.classify(score)
-    if level is None:
-        return None
-    return {
-        "slug": level.slug,
-        "name": level.name,
-        "badge": level.badge,
-        "description": level.description,
-        "min_score": level.min_score,
-        "max_score": level.max_score,
-    }
-
-
 @bp.get("/")
 @requires_basic_auth
 def index():
@@ -206,13 +107,14 @@ def index():
     if order not in {"asc", "desc"}:
         order = "desc"
 
-    start_date = _parse_date(start_date_raw)
-    end_date = _parse_date(end_date_raw)
+    start_date = article_service.parse_date(start_date_raw)
+    end_date = article_service.parse_date(end_date_raw)
 
     risk_band = risk.level_by_slug(risk_param)
 
-    stmt = _article_select(search_query, start_date,
-                           end_date, sort_key, order, risk_band)
+    stmt = article_service.article_select(
+        search_query, start_date, end_date, sort_key, order, risk_band
+    )
 
     pagination = db.paginate(stmt, page=page, per_page=20, error_out=False)
 
@@ -248,13 +150,14 @@ def export_csv():
     order = request.args.get("order", "desc")
     risk_param = request.args.get("risk", "").strip().lower()
 
-    start_date = _parse_date(start_date_raw)
-    end_date = _parse_date(end_date_raw)
+    start_date = article_service.parse_date(start_date_raw)
+    end_date = article_service.parse_date(end_date_raw)
 
     risk_band = risk.level_by_slug(risk_param)
 
-    stmt = _article_select(search_query, start_date,
-                           end_date, sort_key, order, risk_band)
+    stmt = article_service.article_select(
+        search_query, start_date, end_date, sort_key, order, risk_band
+    )
     articles = db.session.scalars(stmt).all()
 
     buffer = io.StringIO()
@@ -272,7 +175,7 @@ def export_csv():
     writer.writeheader()
 
     for article in articles:
-        payload = _article_to_dict(article)
+        payload = article_service.article_to_dict(article)
         inference = payload.get("inference") or {}
         level = inference.get("risk_level") or payload.get("risk_level")
         writer.writerow(
@@ -311,50 +214,24 @@ def scrape():
         flash("Yahoo!ニュースの記事URLのみ対応しています。", "error")
         return redirect(url_for("main.index"))
 
-    article = db.session.scalar(select(Article).where(Article.url == url))
-    if article:
-        flash("既存の記事を表示します。", "info")
-        return redirect(url_for("main.result", article_id=article.id))
-
     try:
-        response = scraping.fetch(url)
-        parsed = parsing.parse_article(response.url, response.text)
-    except scraping.ScrapeError as exc:
-        current_app.logger.warning("Scraping failed for %s: %s", url, exc)
+        result = article_service.ingest_article(url)
+    except article_service.ArticleIngestionError as exc:
         flash(str(exc), "error")
         return redirect(url_for("main.index"))
-    except parsing.ParseError as exc:
-        current_app.logger.warning("Parsing failed for %s: %s", url, exc)
-        flash("記事の本文を解析できませんでした。", "error")
-        return redirect(url_for("main.index"))
 
-    article = Article(
-        url=parsed.url,
-        title=parsed.title,
-        published_at=parsed.published_at,
-        body=parsed.body,
-    )
-    db.session.add(article)
-    db.session.commit()
+    article = result.article
 
-    if current_app.config.get("ENABLE_AI", True):
-        try:
-            ai_result = ai_service.summarize_and_score(
-                parsed.title, parsed.body[:4000])
-        except ai_service.AIServiceUnavailable as exc:
-            flash(str(exc), "warning")
-        else:
-            inference = InferenceResult(
-                article_id=article.id,
-                risk_score=ai_result.risk_score,
-                summary=ai_result.summary,
-                model=ai_result.model,
-                prompt_version=ai_result.prompt_version,
-            )
-            db.session.add(inference)
-            db.session.commit()
+    if result.status == "created":
+        flash("記事を保存しました。", "success")
+    elif result.status == "updated":
+        flash("記事を更新しました。", "info")
+    else:
+        flash("既存の記事を表示します。", "info")
 
-    flash("記事を保存しました。", "success")
+    if result.ai_error:
+        flash(result.ai_error, "warning")
+
     return redirect(url_for("main.result", article_id=article.id))
 
 
@@ -391,27 +268,29 @@ def rerun_ai(article_id: str):
     if article is None:
         abort(404)
 
-    if not current_app.config.get("ENABLE_AI", True):
-        flash("AI機能は無効化されています。", "error")
-        return redirect(url_for("main.result", article_id=article.id))
-
     try:
-        ai_result = ai_service.summarize_and_score(
-            article.title, article.body[:4000])
-    except ai_service.AIServiceUnavailable as exc:
+        result = article_service.ingest_article(
+            article.url,
+            force=False,
+            run_ai=True,
+            force_ai=True,
+        )
+    except article_service.ArticleIngestionError as exc:
         flash(str(exc), "error")
         return redirect(url_for("main.result", article_id=article.id))
 
-    inference = InferenceResult(
-        article_id=article.id,
-        risk_score=ai_result.risk_score,
-        summary=ai_result.summary,
-        model=ai_result.model,
-        prompt_version=ai_result.prompt_version,
-    )
-    db.session.add(inference)
+    if not result.ai_enabled:
+        flash("AI機能は無効化されています。", "error")
+        return redirect(url_for("main.result", article_id=article.id))
 
-    db.session.commit()
+    if result.ai_error:
+        flash(result.ai_error, "error")
+        return redirect(url_for("main.result", article_id=article.id))
+
+    if not result.ai_ran:
+        flash("AI推論は実行されませんでした。", "info")
+        return redirect(url_for("main.result", article_id=article.id))
+
     flash("AI推論を再実行しました。", "success")
     return redirect(url_for("main.result_ai", article_id=article.id))
 
@@ -431,8 +310,8 @@ def api_list_articles():
         per_page = 20
 
     search_query = request.args.get("q", "").strip()
-    start_date = _parse_date(request.args.get("start"))
-    end_date = _parse_date(request.args.get("end"))
+    start_date = article_service.parse_date(request.args.get("start"))
+    end_date = article_service.parse_date(request.args.get("end"))
     sort_key = request.args.get("sort", "published_at")
     order = request.args.get("order", "desc")
     risk_param = request.args.get("risk", "").strip().lower()
@@ -443,14 +322,15 @@ def api_list_articles():
 
     risk_band = risk.level_by_slug(risk_param)
 
-    stmt = _article_select(search_query, start_date,
-                           end_date, sort_key, order, risk_band)
+    stmt = article_service.article_select(
+        search_query, start_date, end_date, sort_key, order, risk_band
+    )
     pagination = db.paginate(
         stmt, page=page, per_page=per_page, error_out=False)
 
     return jsonify(
         {
-            "items": [_article_to_dict(article) for article in pagination.items],
+            "items": [article_service.article_to_dict(article) for article in pagination.items],
             "page": pagination.page,
             "pages": pagination.pages,
             "per_page": pagination.per_page,
@@ -465,7 +345,7 @@ def api_get_article(article_id: str):
     article = db.session.get(Article, article_id)
     if article is None:
         return jsonify({"error": "記事が見つかりません。"}), 404
-    return jsonify({"article": _article_to_dict(article)})
+    return jsonify({"article": article_service.article_to_dict(article)})
 
 
 @api_bp.post("/articles")
@@ -482,78 +362,28 @@ def api_create_article():
     if not scraping.is_allowed(url):
         return jsonify({"error": "Yahoo!ニュースの記事URLのみ対応しています。"}), 400
 
-    article = db.session.scalar(select(Article).where(Article.url == url))
-    status = "cached"
-    parsed = None
-
-    needs_fetch = force or article is None
-
-    if needs_fetch:
-        try:
-            response = scraping.fetch(url)
-            parsed = parsing.parse_article(response.url, response.text)
-        except scraping.ScrapeError as exc:
-            current_app.logger.warning(
-                "API scrape failed for %s: %s", url, exc)
-            return jsonify({"error": str(exc)}), 502
-        except parsing.ParseError as exc:
-            current_app.logger.warning("API parse failed for %s: %s", url, exc)
-            return jsonify({"error": "記事の本文を解析できませんでした。"}), 422
-
-        if article is None:
-            article = Article(
-                url=parsed.url,
-                title=parsed.title,
-                published_at=parsed.published_at,
-                body=parsed.body,
-            )
-            db.session.add(article)
-            status = "created"
-        else:
-            article.url = parsed.url
-            article.title = parsed.title
-            article.published_at = parsed.published_at
-            article.body = parsed.body
-            status = "updated"
-
-    db.session.flush()
-
-    ai_enabled = current_app.config.get("ENABLE_AI", True)
-    ai_ran = False
-    ai_error: str | None = None
-
-    latest = article.latest_inference
-
-    if run_ai and ai_enabled and (force_ai or latest is None or needs_fetch):
-        try:
-            ai_result = ai_service.summarize_and_score(
-                article.title, article.body[:4000])
-        except ai_service.AIServiceUnavailable as exc:
-            ai_error = str(exc)
-        else:
-            inference = InferenceResult(
-                article_id=article.id,
-                risk_score=ai_result.risk_score,
-                summary=ai_result.summary,
-                model=ai_result.model,
-                prompt_version=ai_result.prompt_version,
-            )
-            db.session.add(inference)
-            ai_ran = True
-
-    db.session.commit()
+    try:
+        result = article_service.ingest_article(
+            url,
+            force=force,
+            run_ai=run_ai,
+            force_ai=force_ai,
+        )
+    except article_service.ArticleIngestionError as exc:
+        current_app.logger.warning("API ingest failed for %s: %s", url, exc)
+        return jsonify({"error": str(exc)}), exc.status_code
 
     response_body = {
-        "article": _article_to_dict(article),
-        "status": status,
+        "article": article_service.article_to_dict(result.article),
+        "status": result.status,
         "ai": {
-            "enabled": ai_enabled,
-            "run": ai_ran,
-            "error": ai_error,
+            "enabled": result.ai_enabled,
+            "run": result.ai_ran,
+            "error": result.ai_error,
         },
     }
 
-    return jsonify(response_body), 201 if status == "created" else 200
+    return jsonify(response_body), 201 if result.status == "created" else 200
 
 
 @api_bp.get("/reports/summary")

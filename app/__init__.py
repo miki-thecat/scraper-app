@@ -34,6 +34,7 @@ def create_app(config_class: type[Config] | None = None) -> Flask:
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp)
+    csrf.exempt(api_bp)
 
     # CLI登録
     from .cli import register_cli_commands

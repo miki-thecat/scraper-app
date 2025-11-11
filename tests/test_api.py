@@ -34,11 +34,11 @@ def test_api_create_article_success(app, client, auth_header, mocker):
 
     sample_url = "https://news.yahoo.co.jp/articles/api-success"
 
-    mocker.patch("app.routes.scraping.fetch", return_value=mocker.Mock(url=sample_url, text="html"))
+    mocker.patch("app.services.articles.scraping.fetch", return_value=mocker.Mock(url=sample_url, text="html"))
     parsed = parsing.ParsedArticle(url=sample_url, title="APIタイトル", published_at=datetime.utcnow(), body="本文")
-    mocker.patch("app.routes.parsing.parse_article", return_value=parsed)
+    mocker.patch("app.services.articles.parsing.parse_article", return_value=parsed)
     mocker.patch(
-        "app.routes.ai_service.summarize_and_score",
+        "app.services.articles.ai_service.summarize_and_score",
         return_value=mocker.Mock(summary="要約", risk_score=55, model="gpt-test", prompt_version="v1"),
     )
 
@@ -95,9 +95,9 @@ def test_api_create_article_force_update(app, client, auth_header, mocker):
         db.session.add(article)
         db.session.commit()
 
-    mocker.patch("app.routes.scraping.fetch", return_value=mocker.Mock(url=sample_url, text="html"))
+    mocker.patch("app.services.articles.scraping.fetch", return_value=mocker.Mock(url=sample_url, text="html"))
     parsed = parsing.ParsedArticle(url=sample_url, title="新タイトル", published_at=None, body="新本文")
-    mocker.patch("app.routes.parsing.parse_article", return_value=parsed)
+    mocker.patch("app.services.articles.parsing.parse_article", return_value=parsed)
 
     resp = client.post(
         "/api/articles",

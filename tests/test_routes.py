@@ -185,11 +185,16 @@ def test_index_sorting_by_title(app, client, auth_header):
 
 
 def test_scrape_creates_article(app, client, auth_header, mocker):
+    app.config["WTF_CSRF_ENABLED"] = False
     url = "https://news.yahoo.co.jp/articles/example"
     parsed = parsing.ParsedArticle(url=url, title="タイトル", published_at=datetime.utcnow(), body="本文")
     mocker.patch("app.routes.scraping.is_allowed", return_value=True)
-    mocker.patch("app.routes.scraping.fetch", return_value=mocker.Mock(url=url, text="html"))
-    mocker.patch("app.routes.parsing.parse_article", return_value=parsed)
+    mocker.patch("app.services.articles.scraping.fetch", return_value=mocker.Mock(url=url, text="html"))
+    mocker.patch("app.services.articles.parsing.parse_article", return_value=parsed)
+    mocker.patch(
+        "app.services.articles.ai_service.summarize_and_score",
+        return_value=mocker.Mock(summary="要約", risk_score=50, model="gpt", prompt_version="v1"),
+    )
 
     resp = client.post("/scrape", data={"url": url}, headers=auth_header, follow_redirects=False)
     assert resp.status_code == 302
@@ -201,6 +206,7 @@ def test_scrape_creates_article(app, client, auth_header, mocker):
 
 
 def test_scrape_reuses_existing_article(app, client, auth_header):
+    app.config["WTF_CSRF_ENABLED"] = False
     with app.app_context():
         article = Article(url="https://news.yahoo.co.jp/articles/existing", title="旧", published_at=None, body="本文")
         db.session.add(article)
@@ -275,8 +281,9 @@ def test_result_ai_page_displays_inference(app, client, auth_header):
 
 
 def test_scrape_failure_flash_message(app, client, auth_header, mocker):
+    app.config["WTF_CSRF_ENABLED"] = False
     mocker.patch("app.routes.scraping.is_allowed", return_value=True)
-    mocker.patch("app.routes.scraping.fetch", side_effect=ScrapeError("取得失敗"))
+    mocker.patch("app.services.articles.scraping.fetch", side_effect=ScrapeError("取得失敗"))
 
     resp = client.post(
         "/scrape",
@@ -291,6 +298,7 @@ def test_scrape_failure_flash_message(app, client, auth_header, mocker):
 
 
 def test_rerun_ai_updates_inference(app, client, auth_header, mocker):
+    app.config["WTF_CSRF_ENABLED"] = False
     with app.app_context():
         app.config["ENABLE_AI"] = True
         article = Article(
@@ -304,7 +312,7 @@ def test_rerun_ai_updates_inference(app, client, auth_header, mocker):
         article_id = article.id
 
     mocker.patch(
-        "app.routes.ai_service.summarize_and_score",
+        "app.services.articles.ai_service.summarize_and_score",
         side_effect=[
             mocker.Mock(
                 summary="初回要約",
@@ -351,6 +359,7 @@ def test_rerun_ai_updates_inference(app, client, auth_header, mocker):
 
 
 def test_rerun_ai_respects_disable(app, client, auth_header):
+    app.config["WTF_CSRF_ENABLED"] = False
     with app.app_context():
         article = Article(
             url="https://news.yahoo.co.jp/articles/ai-disabled",
