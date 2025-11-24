@@ -2,7 +2,8 @@
 
 Yahoo!ニュース記事をスクレイピングし、AIがリスク判定と要約を行うモダンなダッシュボードアプリです。Flask + SQLAlchemy を中心に、RSS取得、記事スクレイピング、AI推論、リスク分析まで一連のワークフローを自動化します。ポートフォリオとして提示しやすいよう、UI/UX・ドキュメント・テストを含めて総合的に仕上げています。
 
-![スクリーンショット](docs/images/design.webp)
+<img width="1833" height="1330" alt="image" src="https://github.com/user-attachments/assets/05b08a0f-b689-4952-b4b6-5802e44be225" />
+
 
 ## ハイライト
 
