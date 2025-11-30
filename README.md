@@ -1,16 +1,16 @@
-# Scraper App 🚀
+# Virtual News Reader 🚀
 
-**Yahoo!ニュース・@niftyニュースの記事をAIで自動分析する次世代ダッシュボード**
+**AI搭載の次世代ニュース分析ダッシュボード - 技術デモンストレーション**
 
 [![CI/CD](https://github.com/YOUR_USERNAME/scraper-app/workflows/CI%2FCD%20Pipeline/badge.svg)](https://github.com/YOUR_USERNAME/scraper-app/actions)
 [![Coverage](https://codecov.io/gh/YOUR_USERNAME/scraper-app/branch/main/graph/badge.svg)](https://codecov.io/gh/YOUR_USERNAME/scraper-app)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 
-> **⚠️ 免責事項**  
-> 本プロジェクトは**技術デモンストレーション・学習目的**のポートフォリオです。  
-> 実際の運用には各ニュースサイトの利用規約・robots.txt の確認と、著作権法の遵守が必要です。  
-> 本コードの使用により生じた一切の損害について、作者は責任を負いません。
+> **📌 技術デモンストレーション**
+> 本プロジェクトは**学習・ポートフォリオ目的**の技術デモです。
+> 仮想ニュースサイト（Virtual News）を使用し、実際の外部サイトへのスクレイピングは行いません。
+> Web スクレイピング、AI統合、モダンUI設計の技術力を実証するためのプロジェクトです。
 
 ![スクリーンショット](docs/images/design.webp)
 
@@ -28,11 +28,11 @@
 - **履歴管理**: 推論履歴の完全トラッキング
 - **リスク分類**: 5段階評価 (MINIMAL → CRITICAL)
 
-### 📰 マルチソース対応
-- **Yahoo!ニュース**: 9カテゴリRSS対応
-- **@niftyニュース**: 6カテゴリRSS対応
-- **横断検索**: 両サイトの記事を統合表示
-- **自動取得**: トピックス→記事URL自動抽出
+### 📰 Virtual News機能
+- **仮想ニュースサイト**: デモ用の安全な記事データ
+- **記事スクレイピング**: HTML解析とデータ抽出
+- **自動取得**: 記事一覧から詳細ページへの自動遷移
+- **リアルタイム分析**: スクレイプ直後にAI分析実行
 
 ### 🔒 セキュリティ
 - **CSRF保護**: 全フォームでトークン検証
@@ -84,24 +84,27 @@
 scraper-app/
 ├── app/
 │   ├── auth/              # 認証・セッション管理
+│   ├── blueprints/        # Flaskブループリント
+│   │   └── virtual_news.py # Virtual Newsサイト
 │   ├── models/            # SQLAlchemyモデル
 │   │   ├── article.py     # 記事モデル + AI推論結果
 │   │   ├── user.py        # ユーザーモデル
 │   │   └── db.py          # DB初期化
 │   ├── services/          # ビジネスロジック
 │   │   ├── scraping.py    # スクレイピングエンジン
-│   │   ├── parsing.py     # Yahoo!ニュースパーサー
-│   │   ├── nifty_news.py  # @niftyニュースパーサー
+│   │   ├── parsing.py     # HTMLパーサー
+│   │   ├── virtual_news_parser.py # Virtual Newsパーサー
 │   │   ├── articles.py    # 記事管理サービス
 │   │   ├── ai.py          # OpenAI統合
 │   │   ├── risk.py        # リスク分類ロジック
-│   │   ├── news_feed.py   # RSS取得
+│   │   ├── news_feed.py   # ニュースフィード
 │   │   └── analytics.py   # メトリクス集計
 │   ├── templates/         # Jinja2テンプレート
 │   │   ├── layout.html    # ベースレイアウト
 │   │   ├── index.html     # ダッシュボード
 │   │   ├── result.html    # 記事詳細
-│   │   └── login.html     # ログイン画面
+│   │   ├── login.html     # ログイン画面
+│   │   └── virtual_news/  # Virtual Newsテンプレート
 │   ├── static/
 │   │   └── styles.css     # モダンCSS (1584 lines)
 │   ├── routes.py          # ルーティング
@@ -166,9 +169,6 @@ DATABASE_URL=sqlite:///local.db  # または postgresql://...
 OPENAI_API_KEY=sk-...
 ENABLE_AI=true
 
-# RSS Feeds
-ENABLED_FEED_PROVIDERS=yahoo,nifty
-
 # 認証 (Basic Auth)
 BASIC_AUTH_USERNAME=admin
 BASIC_AUTH_PASSWORD=secure-password
@@ -191,6 +191,9 @@ flask auth create-user admin password123
 
 ```bash
 # 開発サーバー起動
+python run.py
+
+# または Flask CLI
 flask run --debug
 
 # または Gunicorn (本番想定)
@@ -211,59 +214,18 @@ docker-compose up -d
 # ログ確認
 docker-compose logs -f web
 ```
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-```
-
-`.env` に下記必須項目を設定してください。
-
-```
-FLASK_ENV=development
-DATABASE_URL=sqlite:///local.db
-BASIC_AUTH_USERNAME=admin
-BASIC_AUTH_PASSWORD=change_me
-OPENAI_API_KEY=sk-...
-```
-
-### 3. 初期化
-
-```bash
-flask --app app.main db upgrade   # 初回のみ
-flask --app app.main seed sample  # サンプルデータ投入 (任意)
-```
-
-### 4. 開発サーバー起動
-
-```bash
-flask --app app.main run
-# or
-make dev
-```
-
-ブラウザで `http://localhost:5000` を開き、先ほど設定した認証情報でログインします。
-
-### 5. テストと品質チェック
-
-```bash
-pytest
-pytest --cov=app --cov-report=term-missing   # カバレッジ表示
-ruff check .                                  # Lint (導入済みの場合)
-black .                                      # 整形 (導入済みの場合)
-```
 
 ## 📖 使い方
 
 ### ダッシュボード
 
-1. **最新ニュース閲覧**
-   - Yahoo!/Niftyの両方から横断的に取得
-   - 9カテゴリ × 複数メディア = 600+ 記事
-   - ワンクリックでAI解析実行
+1. **Virtual News閲覧**
+   - `/virtual-news/` で仮想ニュースサイトにアクセス
+   - 5つのモック記事を閲覧可能
+   - 認証不要でアクセス可能
 
 2. **記事スクレイピング**
-   - URLを入力して「実行する」ボタン
+   - Virtual NewsのURLを入力して「実行する」ボタン
    - 自動的に記事内容取得 + AI要約・リスク評価
    - 重複チェック機能付き
 
@@ -285,18 +247,15 @@ black .                                      # 整形 (導入済みの場合)
 ### CLI コマンド
 
 ```bash
-# RSS から記事を取得してスクレイプ
-flask scrape-feed --limit 10 --provider yahoo
+# ユーザー管理
+flask auth create-user <username> <password>
+flask auth list-users
 
-# 既存記事に対してAI推論を実行
+# AI推論を再実行
 flask ai rerun --article-id <ID>
 
 # CSV エクスポート
 flask export-csv --output articles.csv
-
-# ユーザー管理
-flask auth create-user <username> <password>
-flask auth list-users
 ```
 
 ### API 利用
@@ -333,7 +292,7 @@ POST /api/articles
 Content-Type: application/json
 
 {
-  "url": "https://news.yahoo.co.jp/articles/...",
+  "url": "http://localhost:5000/virtual-news/article/1",
   "force": false,
   "run_ai": true
 }
@@ -344,40 +303,23 @@ Content-Type: application/json
 GET /api/reports/summary
 ```
 
-### リクエスト例
+## 🧪 テスト
 
 ```bash
-curl -u admin:password \
-  -H "Content-Type: application/json" \
-  -d '{"url": "https://news.yahoo.co.jp/articles/example", "force_ai": true}' \
-  http://localhost:5000/api/articles
+# 全テスト実行
+pytest
 
-curl -H "Authorization: Bearer my-token" \
-  http://localhost:5000/api/articles
+# カバレッジ表示
+pytest --cov=app --cov-report=term-missing
+
+# Lint
+ruff check .
+
+# コード整形
+black .
 ```
 
-## CLIユーティリティ
-
-```bash
-flask --app app.main scrape feed   # RSSで最新記事をまとめて取得
-flask --app app.main ai rerun      # 古い記事に対してAIを再実行
-flask --app app.main export csv    # 分析用CSVエクスポート
-```
-
-詳細は `cli/` ディレクトリの実装や `flask --app app.main --help` を参照してください。
-
-## MLワークフロー
-
-`ml/` ディレクトリに学習・評価スクリプトとサンプルデータが同梱されています。自前データで再学習する場合は以下を参考にしてください。
-
-```bash
-python ml/train.py --train ml/data/train.csv --valid ml/data/valid.csv
-python ml/evaluate.py --valid ml/data/valid.csv
-```
-
-モデルのハイパーパラメータや特徴量設計を調整し、`app/services/ai.py` から呼び出す推論ロジックを差し替えることで、独自のリスクスコアリングに対応できます。
-
-## Dockerでの起動
+## 🐳 Dockerでの起動
 
 ### 開発環境
 
@@ -409,13 +351,7 @@ docker-compose up -d --build
 - アプリケーション: http://localhost:8080
 - Nginx (リバースプロキシ): http://localhost:80
 
-### イメージのビルドのみ
-
-```bash
-docker build -t scraper-app:latest .
-```
-
-## CI/CD
+## 🚀 CI/CD
 
 GitHub Actions による自動テスト・ビルド・デプロイパイプラインを構築済み:
 
@@ -426,35 +362,16 @@ GitHub Actions による自動テスト・ビルド・デプロイパイプラ�
 
 ワークフロー: `.github/workflows/ci-cd.yml`
 
-## デプロイガイド
-
-### 従来の方法（EC2 + systemd）
-
-- `deploy/nginx.conf`: リバースプロキシ設定例
-- `deploy/scraper-app.service`: systemd ユニット (Gunicornを想定)
-- `deploy/buildspec.yml`: AWS CodeBuild 用設定
-- `deploy/deploy.sh`: build artifact を EC2 に配布し、サービス再起動まで自動化
-
-### Docker を使った方法（推奨）
-
-```bash
-# EC2 インスタンスで
-git clone <repository>
-cd scraper-app
-cp .env.example .env
-# .env を編集
-docker-compose up -d --build
-```
-
-## 制作背景とアピールポイント
+## 📚 制作背景とアピールポイント
 
 - **課題意識**: ニュース記事の氾濫によりリスク情報の見逃しが増えている。企業のリスク管理部門向けに即時判定可能なツールを想定。
 - **工夫した点**: スクレイピングからAI推論までの一貫したエラーハンドリング、再実行性、キャッシュ戦略を丁寧に設計。
 - **UI/UX**: ダッシュボードとログイン画面を含む全体をガラス感のあるデザインで統一。レスポンシブ対応済み。
 - **品質確保**: pytestベースの自動テストとレートリミット・認証制御を導入し、実サービスでも安全に扱える構成。
-- **拡張性**: RSS以外のソース追加、Slack通知、BIツール連携などを容易に追加できる抽象化を実装。
+- **拡張性**: 新しいニュースソース追加、Slack通知、BIツール連携などを容易に追加できる抽象化を実装。
+- **安全性**: 実際の外部サイトをスクレイピングせず、仮想環境で技術を実証。
 
-## 今後のロードマップ
+## 🗺️ 今後のロードマップ
 
 - Slack / Teams 連携によるアラート配信
 - 自動スクレイピングスケジューラ (Celery + Beat)
@@ -462,7 +379,7 @@ docker-compose up -d --build
 - マルチユーザー対応と権限管理
 - Docker Compose + Terraform を使った IaC 化
 
-## ライセンス
+## 📄 ライセンス
 
 MIT License
 
