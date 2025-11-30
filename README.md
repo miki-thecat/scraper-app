@@ -12,7 +12,8 @@
 > 仮想ニュースサイト（Virtual News）を使用し、実際の外部サイトへのスクレイピングは行いません。
 > Web スクレイピング、AI統合、モダンUI設計の技術力を実証するためのプロジェクトです。
 
-![スクリーンショット](docs/images/design.webp)
+<img width="1822" height="1336" alt="image" src="https://github.com/user-attachments/assets/7de31486-e9fd-4f53-915b-353906f82aa3" />
+
 
 ## ✨ ハイライト
 
