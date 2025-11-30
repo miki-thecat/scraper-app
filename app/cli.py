@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-from __future__ import annotations
-
-import csv
-import io
 from pathlib import Path
 
 import click
@@ -11,13 +7,29 @@ from flask import Flask
 from sqlalchemy import select
 
 from .models.article import Article
+from .models.user import User
 from .models.db import db
 from .services import articles as article_service
 from .services import news_feed, risk
 
-
 def register_cli_commands(app: Flask) -> None:
     """Flask CLIに便利コマンドを登録。"""
+
+    @app.cli.command("create-user")
+    @click.argument("username")
+    @click.argument("password")
+    def create_user(username, password):
+        """ユーザーを作成します。"""
+        with app.app_context():
+            user = User(username=username)
+            user.set_password(password)
+            db.session.add(user)
+            try:
+                db.session.commit()
+                click.echo(f"ユーザー {username} を作成しました。")
+            except Exception as e:
+                db.session.rollback()
+                click.echo(f"ユーザー作成エラー: {e}", err=True)
 
     @app.cli.command("list-articles")
     def list_articles() -> None:
@@ -35,42 +47,53 @@ def register_cli_commands(app: Flask) -> None:
     @click.option("--force", is_flag=True, help="既存記事も再取得します。")
     @click.option("--skip-ai", is_flag=True, help="AI要約/リスク算出をスキップします。")
     @click.option("--force-ai", is_flag=True, help="既存推論があってもAIを再実行します。")
-    def scrape_feed(limit: int, force: bool, skip_ai: bool, force_ai: bool) -> None:
+    @click.option(
+        "--provider",
+        "-p",
+        "providers",
+        multiple=True,
+        type=click.Choice(["yahoo", "nifty"]),
+        help="対象ニュースプロバイダ（複数指定可）。省略時は有効な全プロバイダ。",
+    )
+    def scrape_feed(limit: int, force: bool, skip_ai: bool, force_ai: bool, providers: tuple[str, ...]) -> None:
         """最新RSSをまとめて取り込み。"""
 
         if limit <= 0:
             raise click.BadParameter("limit は1以上で指定してください。")
 
         with app.app_context():
-            items = news_feed.fetch_latest_articles(limit=limit)
-            if not items:
-                click.echo("RSSから記事を取得できませんでした。")
-                return
-
+            target_providers = providers or news_feed.enabled_providers()
             stats = {"created": 0, "updated": 0, "cached": 0, "errors": 0}
-
-            for item in items:
-                try:
-                    result = article_service.ingest_article(
-                        item.url,
-                        force=force,
-                        run_ai=not skip_ai,
-                        force_ai=force_ai,
-                    )
-                except article_service.ArticleIngestionError as exc:
-                    stats["errors"] += 1
-                    click.echo(f"[ERROR] {item.url} - {exc}", err=True)
+            for provider in target_providers:
+                items = news_feed.fetch_latest_articles(limit=limit, provider=provider)
+                if not items:
+                    click.echo(f"{news_feed.provider_label(provider)} のRSSを取得できませんでした。")
                     continue
 
-                stats[result.status] += 1
-                published = article_service.format_timestamp(item.published_at)
-                click.echo(
-                    f"[{result.status.upper():7}] {item.title} "
-                    f"({published or '日時不明'})"
-                )
+                click.echo(f"=== {news_feed.provider_label(provider)} ({len(items)} 件) ===")
 
-                if result.ai_error:
-                    click.echo(f"    ↳ AI: {result.ai_error}", err=True)
+                for item in items:
+                    try:
+                        result = article_service.ingest_article(
+                            item.url,
+                            force=force,
+                            run_ai=not skip_ai,
+                            force_ai=force_ai,
+                        )
+                    except article_service.ArticleIngestionError as exc:
+                        stats["errors"] += 1
+                        click.echo(f"[ERROR] {item.url} - {exc}", err=True)
+                        continue
+
+                    stats[result.status] += 1
+                    published = article_service.format_timestamp(item.published_at)
+                    click.echo(
+                        f"[{result.status.upper():7}] {item.title} "
+                        f"({published or '日時不明'})"
+                    )
+
+                    if result.ai_error:
+                        click.echo(f"    ↳ AI: {result.ai_error}", err=True)
 
             click.echo(
                 "created={created} updated={updated} "

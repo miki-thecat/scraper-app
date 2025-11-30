@@ -48,6 +48,10 @@ class Config:
         "Mozilla/5.0 (compatible; ScraperApp/1.0; +https://example.com/bot)",
     )
     RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))
+    
+    # News sources
+    YAHOO_NEWS_URL_PREFIX = "https://news.yahoo.co.jp/articles/"
+    NIFTY_NEWS_URL_PREFIX = "https://news.nifty.com/topics/"
 
     # Feed settings
     NEWS_FEED_URLS = tuple(
@@ -81,6 +85,25 @@ class Config:
         if token.strip()
     )
     NEWS_FEED_TIMEOUT = int(os.getenv("NEWS_FEED_TIMEOUT", "5"))
+    NIFTY_FEED_URLS = tuple(
+        token.strip()
+        for token in os.getenv(
+            "NIFTY_FEED_URLS",
+            "https://news.nifty.com/rss/topics_pickup.xml,"
+            "https://news.nifty.com/rss/topics_domestic.xml,"
+            "https://news.nifty.com/rss/topics_world.xml,"
+            "https://news.nifty.com/rss/topics_economy.xml,"
+            "https://news.nifty.com/rss/topics_entame.xml,"
+            "https://news.nifty.com/rss/topics_sports.xml,"
+            "https://news.nifty.com/rss/topics_technology.xml",
+        ).split(",")
+        if token.strip()
+    )
+    ENABLED_FEED_PROVIDERS = tuple(
+        slug.strip().lower()
+        for slug in os.getenv("ENABLED_FEED_PROVIDERS", "yahoo,nifty").split(",")
+        if slug.strip()
+    )
 
     # OpenAI / AI settings
     OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")

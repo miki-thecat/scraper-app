@@ -13,7 +13,7 @@ from app.models.article import Article, InferenceResult
 from app.models.db import db
 
 from . import ai as ai_service
-from . import parsing, risk, scraping
+from . import nifty_news, parsing, risk, scraping, virtual_news_parser
 
 
 @dataclass(slots=True)
@@ -138,12 +138,29 @@ def ingest_article(
     run_ai: bool = True,
     force_ai: bool = False,
 ) -> ArticleIngestionResult:
-    """Fetch, parse, persist, and optionally run AI for a Yahoo!ニュース article."""
+    """Fetch, parse, persist, and optionally run AI for a news article (Yahoo!/Nifty)."""
 
     if not url:
         raise ArticleIngestionError("URLを指定してください。", status_code=400)
-    if not scraping.is_allowed(url):
-        raise ArticleIngestionError("Yahoo!ニュースの記事URLのみ対応しています。", status_code=400)
+
+    # マルチソース対応: URLに応じてパーサーを選択
+    if nifty_news.is_nifty_news_url(url):
+        source = "nifty_news"
+        is_valid = True
+    elif virtual_news_parser.VirtualNewsParser.is_virtual_news_url(url):
+        source = "virtual_news"
+        is_valid = True
+    elif scraping.is_allowed(url):
+        source = "yahoo_news"
+        is_valid = True
+    else:
+        is_valid = False
+
+    if not is_valid:
+        raise ArticleIngestionError(
+            "対応していないニュースサイトです。Yahoo!ニュースまたは@niftyニュースの記事URLを指定してください。",
+            status_code=400
+        )
 
     article = db.session.scalar(select(Article).where(Article.url == url))
     needs_fetch = force or article is None
@@ -153,7 +170,30 @@ def ingest_article(
     if needs_fetch:
         try:
             response = scraping.fetch(url)
-            parsed = parsing.parse_article(response.url, response.text)
+
+            # ソースに応じてパーサーを選択
+            if source == "nifty_news":
+                # トピックスページの場合、記事URLを抽出
+                if '/topics/' in response.url:
+                    article_url = nifty_news.NiftyNewsParser.extract_article_url(response.text)
+                    if article_url:
+                        current_app.logger.info(f"Extracted article URL: {article_url}")
+                        # 記事ページを再取得
+                        article_response = scraping.fetch(article_url)
+                        parsed = nifty_news.NiftyNewsParser.parse_article(
+                            article_response.text, article_response.url
+                        )
+                    else:
+                        # 記事URL取得失敗時はトピックスページをそのままパース
+                        current_app.logger.warning(f"Could not extract article URL from topics page: {url}")
+                        parsed = nifty_news.NiftyNewsParser.parse_article(response.text, response.url)
+                else:
+                    # 記事URLを直接指定された場合
+                    parsed = nifty_news.NiftyNewsParser.parse_article(response.text, response.url)
+            elif source == "virtual_news":
+                parsed = virtual_news_parser.VirtualNewsParser.parse_article(response.text, response.url)
+            else:
+                parsed = parsing.parse_article(response.url, response.text)
         except scraping.ScrapeError as exc:
             db.session.rollback()
             current_app.logger.warning("Scraping failed for %s: %s", url, exc)

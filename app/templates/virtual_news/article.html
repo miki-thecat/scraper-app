@@ -1,0 +1,29 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('virtual_news.index') }}">Virtual News</a></li>
+            <li class="breadcrumb-item active" aria-current="page">記事詳細</li>
+        </ol>
+    </nav>
+
+    <article class="blog-post">
+        <h1 class="blog-post-title mb-3">{{ article.title }}</h1>
+        <p class="blog-post-meta text-muted mb-4">{{ published_dt.strftime('%Y年%m月%d日 %H:%M') }}</p>
+
+        <hr>
+
+        <div class="article-body mt-4">
+            {% for paragraph in article.body.split('\n\n') %}
+            <p>{{ paragraph }}</p>
+            {% endfor %}
+        </div>
+    </article>
+
+    <div class="mt-5">
+        <a href="{{ url_for('virtual_news.index') }}" class="btn btn-outline-secondary">一覧に戻る</a>
+    </div>
+</div>
+{% endblock %}

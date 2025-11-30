@@ -69,6 +69,13 @@ def _validate_user_credentials(username: str, password: str) -> bool:
     return username == expected_username and password == expected_password
 
 
+def _provider_meta(slug: str) -> dict[str, str]:
+    return {
+        "slug": slug,
+        "label": news_feed.provider_label(slug),
+    }
+
+
 def requires_basic_auth(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
@@ -128,7 +135,11 @@ def index():
     pagination = db.paginate(stmt, page=page, per_page=20, error_out=False)
 
     metrics = analytics.gather_metrics(db.session)
-    latest_articles = _latest_articles_for_view(limit=6)
+    feed_providers_meta = [_provider_meta(slug) for slug in news_feed.enabled_providers()]
+    latest_articles_group = {
+        meta["slug"]: _latest_articles_for_view(limit=6, provider=meta["slug"])
+        for meta in feed_providers_meta
+    }
 
     return render_template(
         "index.html",
@@ -143,7 +154,8 @@ def index():
             "risk": risk_param,
         },
         metrics=metrics,
-        latest_articles=latest_articles,
+        feed_providers=feed_providers_meta,
+        latest_articles_group=latest_articles_group,
         risk_classify=risk.classify,
         risk_levels=risk.levels(),
     )
@@ -220,7 +232,7 @@ def scrape():
         return redirect(url_for("main.index"))
 
     if not scraping.is_allowed(url):
-        flash("Yahoo!ニュースの記事URLのみ対応しています。", "error")
+        flash("Virtual Newsの記事URLのみ対応しています。", "error")
         return redirect(url_for("main.index"))
 
     try:
@@ -369,7 +381,7 @@ def api_create_article():
     if not url:
         return jsonify({"error": "url は必須です。"}), 400
     if not scraping.is_allowed(url):
-        return jsonify({"error": "Yahoo!ニュースの記事URLのみ対応しています。"}), 400
+        return jsonify({"error": "Virtual Newsの記事URLのみ対応しています。"}), 400
 
     try:
         result = article_service.ingest_article(
@@ -425,9 +437,9 @@ def api_report_summary():
 _TOKYO_TZ = tz.gettz("Asia/Tokyo")
 
 
-def _latest_articles_for_view(limit: int, search_query: str = "") -> list[dict[str, Any]]:
+def _latest_articles_for_view(limit: int, provider: str, search_query: str = "") -> list[dict[str, Any]]:
     items = news_feed.fetch_latest_articles(
-        limit=limit * 3)  # Fetch more for filtering
+        limit=limit * 3, provider=provider)  # Fetch more for filtering
     latest: list[dict[str, Any]] = []
 
     search_lower = search_query.lower() if search_query else ""
@@ -458,6 +470,8 @@ def _latest_articles_for_view(limit: int, search_query: str = "") -> list[dict[s
                 "source": item.source,
                 "published_display": published_display,
                 "published_iso": published_iso,
+                "provider": provider,
+                "provider_label": news_feed.provider_label(provider),
             }
         )
 
@@ -476,7 +490,7 @@ def healthz():
 @bp.get("/latest-feed")
 @requires_basic_auth
 def latest_feed():
-    """最新Yahoo!ニュースの専用ページ（ページネーション＆検索対応）"""
+    """最新ニュースの専用ページ（ページネーション＆検索対応）"""
     page_param = request.args.get("page", "1")
     try:
         page = max(int(page_param), 1)
@@ -485,9 +499,18 @@ def latest_feed():
 
     search_query = request.args.get("q", "").strip()
     per_page = 20
+    providers = news_feed.enabled_providers()
+    selected_provider = request.args.get("source", providers[0] if providers else "yahoo").lower()
+    if selected_provider not in providers:
+        selected_provider = providers[0]
 
     # Fetch more articles to handle filtering (increased limit for more sources)
-    all_items = news_feed.fetch_latest_articles(limit=500)
+    try:
+        all_items = news_feed.fetch_latest_articles(limit=500, provider=selected_provider)
+        current_app.logger.info(f"Fetched {len(all_items)} items from {selected_provider}")
+    except Exception as e:
+        current_app.logger.error(f"Error fetching from {selected_provider}: {e}")
+        all_items = []
 
     # Filter by search query
     filtered_items = []
@@ -518,6 +541,8 @@ def latest_feed():
                 "source": item.source,
                 "published_display": published_display,
                 "published_iso": published_iso,
+                "provider": selected_provider,
+                "provider_label": news_feed.provider_label(selected_provider),
             }
         )
 
@@ -545,6 +570,8 @@ def latest_feed():
         articles=page_items,
         pagination=pagination_info,
         search_query=search_query,
+        feed_providers=[_provider_meta(slug) for slug in providers],
+        selected_provider=_provider_meta(selected_provider),
     )
 
 

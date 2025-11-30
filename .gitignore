@@ -28,7 +28,7 @@ dist/
 *.egg-info/
 *.egg
 
-# IDE
+run# IDE
 .vscode/
 .idea/
 *.swp

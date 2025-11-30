@@ -72,6 +72,7 @@ def login_post():
 
 @auth_bp.post("/logout")
 def logout():
+
     if session_manager.is_authenticated():
         session_manager.logout_user()
         flash("ログアウトしました。", "success")

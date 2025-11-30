@@ -59,9 +59,15 @@ def test_flask_cli_scrape_feed_invokes_ingest(app, mocker):
             url="https://news.yahoo.co.jp/articles/feed-cli",
             published_at=datetime.now(timezone.utc),
             source="Yahoo!",
+            provider="yahoo",
         )
     ]
-    mocker.patch("app.cli.news_feed.fetch_latest_articles", return_value=feed_items)
+
+    def fake_fetch(limit, provider):
+        assert provider == "yahoo"
+        return feed_items
+
+    mocker.patch("app.cli.news_feed.fetch_latest_articles", side_effect=fake_fetch)
     ingest_mock = mocker.patch(
         "app.cli.article_service.ingest_article",
         return_value=SimpleNamespace(status="created", ai_error=None),
@@ -77,6 +83,32 @@ def test_flask_cli_scrape_feed_invokes_ingest(app, mocker):
         force_ai=False,
     )
     assert "created" in result.output
+
+
+def test_flask_cli_scrape_feed_with_provider_option(app, mocker):
+    runner = app.test_cli_runner()
+    feed_items = [
+        news_feed.NewsFeedItem(
+            title="フィード記事",
+            url="https://news.nifty.com/articles/feed-cli",
+            published_at=datetime.now(timezone.utc),
+            source="ニフティ",
+            provider="nifty",
+        )
+    ]
+
+    mocker.patch(
+        "app.cli.news_feed.fetch_latest_articles",
+        side_effect=lambda limit, provider: feed_items if provider == "nifty" else [],
+    )
+    ingest_mock = mocker.patch(
+        "app.cli.article_service.ingest_article",
+        return_value=SimpleNamespace(status="created", ai_error=None),
+    )
+
+    result = runner.invoke(args=["scrape", "feed", "--provider", "nifty", "--limit", "1"])
+    assert result.exit_code == 0
+    ingest_mock.assert_called_once()
 
 
 def test_flask_cli_ai_rerun_uses_service(app, mocker):

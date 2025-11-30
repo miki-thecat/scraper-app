@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="ja">
+
 <head>
     <meta charset="utf-8">
     <title>{% block title %}スクレイピングアプリケーション{% endblock %}</title>
@@ -7,6 +8,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
+
 <body class="app-body">
     <div class="app-background">
         <span class="app-background__glow app-background__glow--primary"></span>
@@ -16,7 +18,7 @@
     <div class="app-shell">
         <div class="app-topbar">
             <a class="app-topbar__brand" href="{{ url_for('main.index') }}">
-                Scraper<span>App</span>
+                Virtual<span>News</span>
             </a>
             <div class="app-topbar__actions">
                 {% if is_authenticated %}
@@ -33,9 +35,9 @@
         <header class="hero">
             {% block hero %}
             <div class="hero__inner">
-                <div class="hero__badge">スクレイピング &times; AI</div>
-                <h1>スクレイピングアプリケーション</h1>
-                <p class="tagline">Yahoo!ニュースの記事を取得してAIでリスク評価。リスク情報をすばやく把握できます。</p>
+                <div class="hero__badge">Virtual News &times; AI</div>
+                <h1>Virtual News Reader</h1>
+                <p class="tagline">仮想ニュースサイトの記事を取得してAIでリスク評価。安全なデモ環境で体験できます。</p>
             </div>
             {% endblock %}
         </header>
@@ -53,4 +55,5 @@
         </main>
     </div>
 </body>
+
 </html>
