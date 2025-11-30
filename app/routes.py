@@ -232,7 +232,7 @@ def scrape():
         return redirect(url_for("main.index"))
 
     if not scraping.is_allowed(url):
-        flash("Yahoo!ニュースまたは@niftyニュースの記事URLのみ対応しています。", "error")
+        flash("Virtual Newsの記事URLのみ対応しています。", "error")
         return redirect(url_for("main.index"))
 
     try:
@@ -381,7 +381,7 @@ def api_create_article():
     if not url:
         return jsonify({"error": "url は必須です。"}), 400
     if not scraping.is_allowed(url):
-        return jsonify({"error": "Yahoo!ニュースの記事URLのみ対応しています。"}), 400
+        return jsonify({"error": "Virtual Newsの記事URLのみ対応しています。"}), 400
 
     try:
         result = article_service.ingest_article(

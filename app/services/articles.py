@@ -13,7 +13,7 @@ from app.models.article import Article, InferenceResult
 from app.models.db import db
 
 from . import ai as ai_service
-from . import nifty_news, parsing, risk, scraping
+from . import nifty_news, parsing, risk, scraping, virtual_news_parser
 
 
 @dataclass(slots=True)
@@ -142,17 +142,20 @@ def ingest_article(
 
     if not url:
         raise ArticleIngestionError("URLを指定してください。", status_code=400)
-    
+
     # マルチソース対応: URLに応じてパーサーを選択
     if nifty_news.is_nifty_news_url(url):
         source = "nifty_news"
+        is_valid = True
+    elif virtual_news_parser.VirtualNewsParser.is_virtual_news_url(url):
+        source = "virtual_news"
         is_valid = True
     elif scraping.is_allowed(url):
         source = "yahoo_news"
         is_valid = True
     else:
         is_valid = False
-    
+
     if not is_valid:
         raise ArticleIngestionError(
             "対応していないニュースサイトです。Yahoo!ニュースまたは@niftyニュースの記事URLを指定してください。",
@@ -167,7 +170,7 @@ def ingest_article(
     if needs_fetch:
         try:
             response = scraping.fetch(url)
-            
+
             # ソースに応じてパーサーを選択
             if source == "nifty_news":
                 # トピックスページの場合、記事URLを抽出
@@ -187,6 +190,8 @@ def ingest_article(
                 else:
                     # 記事URLを直接指定された場合
                     parsed = nifty_news.NiftyNewsParser.parse_article(response.text, response.url)
+            elif source == "virtual_news":
+                parsed = virtual_news_parser.VirtualNewsParser.parse_article(response.text, response.url)
             else:
                 parsed = parsing.parse_article(response.url, response.text)
         except scraping.ScrapeError as exc:

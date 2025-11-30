@@ -33,7 +33,12 @@ def create_app(config_class: type[Config] | None = None) -> Flask:
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
+
     app.register_blueprint(api_bp)
+
+    from .blueprints.virtual_news import bp as virtual_news_bp
+    app.register_blueprint(virtual_news_bp)
+
     csrf.exempt(api_bp)
 
     # CLI登録

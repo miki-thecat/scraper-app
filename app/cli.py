@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-from __future__ import annotations
-
-import csv
-import io
 from pathlib import Path
 
 import click
@@ -11,13 +7,29 @@ from flask import Flask
 from sqlalchemy import select
 
 from .models.article import Article
+from .models.user import User
 from .models.db import db
 from .services import articles as article_service
 from .services import news_feed, risk
 
-
 def register_cli_commands(app: Flask) -> None:
     """Flask CLIに便利コマンドを登録。"""
+
+    @app.cli.command("create-user")
+    @click.argument("username")
+    @click.argument("password")
+    def create_user(username, password):
+        """ユーザーを作成します。"""
+        with app.app_context():
+            user = User(username=username)
+            user.set_password(password)
+            db.session.add(user)
+            try:
+                db.session.commit()
+                click.echo(f"ユーザー {username} を作成しました。")
+            except Exception as e:
+                db.session.rollback()
+                click.echo(f"ユーザー作成エラー: {e}", err=True)
 
     @app.cli.command("list-articles")
     def list_articles() -> None:

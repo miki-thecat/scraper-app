@@ -7,6 +7,11 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 
+> **⚠️ 免責事項**  
+> 本プロジェクトは**技術デモンストレーション・学習目的**のポートフォリオです。  
+> 実際の運用には各ニュースサイトの利用規約・robots.txt の確認と、著作権法の遵守が必要です。  
+> 本コードの使用により生じた一切の損害について、作者は責任を負いません。
+
 ![スクリーンショット](docs/images/design.webp)
 
 ## ✨ ハイライト
